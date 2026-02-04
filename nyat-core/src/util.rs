@@ -1,8 +1,6 @@
 use socket2::Socket;
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 use tokio::net::TcpStream;
-
-use crate::error::Error;
 
 #[derive(Clone, Copy)]
 pub(crate) enum Protocol {
@@ -10,13 +8,33 @@ pub(crate) enum Protocol {
     Udp,
 }
 
-/// resolve dns, domain without trailing "/"
-/// TODO: accept v6 or v4 hint
-pub(crate) async fn resolve_dns(domain: &str, port: u16) -> Result<SocketAddr, Error> {
-    tokio::net::lookup_host(format!("{domain}:{port}"))
-        .await?
-        .find(SocketAddr::is_ipv4)
-        .ok_or(Error::DNS)
+pub(crate) enum IpVer {
+    V6,
+    V4,
+}
+
+error_set::error_set! {
+    DnsError {
+        Resolve(std::io::Error),
+        Notfound,
+    }
+}
+
+pub(crate) async fn resolve_dns<T: tokio::net::ToSocketAddrs>(
+    host: T,
+    ver_prefered: Option<IpVer>,
+) -> Result<SocketAddr, DnsError> {
+    let mut addrs = tokio::net::lookup_host(host).await?;
+
+    if let Some(ver) = ver_prefered {
+        addrs.find(|s| match ver {
+            IpVer::V6 => s.is_ipv6(),
+            IpVer::V4 => s.is_ipv4(),
+        })
+    } else {
+        addrs.next()
+    }
+    .ok_or(DnsError::Notfound)
 }
 
 /// create tcp stream
@@ -41,6 +59,9 @@ pub(crate) async fn connect_remote(
 }
 
 /// send tick to keep the tcp connection alive
-pub(crate) async fn keepalive(stream: &TcpStream) -> Result<(), std::io::Error> {
+pub(crate) async fn keepalive(
+    stream: &TcpStream,
+    interval: Duration,
+) -> Result<(), std::io::Error> {
     todo!()
 }

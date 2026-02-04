@@ -18,10 +18,7 @@ fn create_binding_req() -> Result<Vec<u8>, StunError> {
     Ok(msg.marshal_binary()?)
 }
 
-// TODO: query the public ip port and do the following action
-pub(crate) async fn stun_action_tcp<F>(stream: TcpStream, handler: F) -> Result<(), std::io::Error>
-where
-    F: FnOnce(SocketAddr),
-{
+// TODO: query the public ip port
+pub(crate) async fn tcp_stun(stream: TcpStream) -> Result<SocketAddr, std::io::Error> {
     todo!()
 }

@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use crate::{
     error::Error,
-    util::{Protocol, resolve_dns},
+    util::{DnsError, Protocol, resolve_dns},
 };
 use smallvec::SmallVec;
 use socket2::{Domain, Socket, Type};
@@ -54,10 +54,10 @@ pub(crate) enum RemoteAddr {
 
 impl RemoteAddr {
     /// get socket addr from remote addr
-    pub(crate) async fn socket_addr(&self) -> Result<SocketAddr, Error> {
+    pub(crate) async fn socket_addr(&self) -> Result<SocketAddr, DnsError> {
         match self {
             Self::SocketAddr(addr) => Ok(*addr),
-            Self::Host { domain, port } => resolve_dns(domain, *port).await,
+            Self::Host { domain, port } => resolve_dns((domain.as_ref(), *port), None).await,
         }
     }
 }

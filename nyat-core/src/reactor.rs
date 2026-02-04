@@ -6,14 +6,23 @@ use tokio::{net::TcpStream, try_join};
 
 use crate::{
     addr::{LocalAddr, RemoteAddr},
-    error::Error,
-    util::{connect_remote, keepalive},
+    util::{DnsError, connect_remote, keepalive},
 };
+
+error_set::error_set! {
+    TcpStreamError := {
+        SocketCreation(std::io::Error),
+        Dns(DnsError),
+        Connection(std::io::Error),
+        Stun,
+    }
+}
 
 pub struct TcpReactor {
     remote: RemoteAddr,
     stun: RemoteAddr,
     local: LocalAddr,
+    tick_interval: Duration,
     sender: tokio::sync::watch::Sender<SocketAddr>,
 }
 
@@ -25,12 +34,12 @@ impl TcpReactor {
                 .stream_and_for_address(|s| {
                     if Some(s) != current_ip {
                         current_ip = Some(s);
-                        self.sender.send(s);
+                        let _ = self.sender.send(s);
                     }
                 })
                 .await
             {
-                Ok(stream) => keepalive(&stream).await?,
+                Ok(stream) => keepalive(&stream, self.tick_interval).await?,
                 Err(e) => {
                     todo!("retry or abort")
                 }
@@ -39,22 +48,41 @@ impl TcpReactor {
         }
     }
 
-    /// Create keepalive tcp stream
+    /// Create keepalive tcp stream and
     async fn stream_and_for_address<F: FnOnce(SocketAddr)>(
         &self,
-        socket_addr: F,
-    ) -> Result<TcpStream, Error> {
-        let socket_ka = self.local.socket(crate::util::Protocol::Tcp)?;
-        let socket_st = self.local.socket(crate::util::Protocol::Tcp)?;
+        pub_addr: F,
+    ) -> Result<TcpStream, TcpStreamError> {
+        let socket_ka = self
+            .local
+            .socket(crate::util::Protocol::Tcp)
+            .map_err(TcpStreamError::SocketCreation)?;
+        let socket_st = self
+            .local
+            .socket(crate::util::Protocol::Tcp)
+            .map_err(TcpStreamError::SocketCreation)?;
 
         let (addr_ka, addr_st) = try_join!(self.remote.socket_addr(), self.stun.socket_addr())?;
+
         // tcp connect
-        let res = try_join!(connect_remote(socket_ka, addr_ka), async {
-            let stun_stream = connect_remote(socket_st, addr_st).await?;
-            crate::stun::stun_action_tcp(stun_stream, socket_addr).await?;
-            Ok(())
-        });
-        res.map(|(stream, _)| stream).map_err(Error::from)
+        try_join!(
+            async {
+                connect_remote(socket_ka, addr_ka)
+                    .await
+                    .map_err(TcpStreamError::Connection)
+            },
+            async {
+                let stun_stream = connect_remote(socket_st, addr_st)
+                    .await
+                    .map_err(TcpStreamError::Connection)?;
+                let socket_addr = crate::stun::tcp_stun(stun_stream)
+                    .await
+                    .map_err(|_| TcpStreamError::Stun)?;
+                pub_addr(socket_addr);
+                Ok(())
+            }
+        )
+        .map(|(stream, _)| stream)
     }
 }
 
