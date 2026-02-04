@@ -1,6 +1,13 @@
 use socket2::Socket;
-use std::{net::SocketAddr, time::Duration};
-use tokio::net::TcpStream;
+use std::{
+    mem::{MaybeUninit, transmute},
+    net::SocketAddr,
+    time::Duration,
+};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) enum Protocol {
@@ -58,10 +65,28 @@ pub(crate) async fn connect_remote(
     Ok(stream)
 }
 
+const BUF_SIZE: usize = 1024;
+
 /// send tick to keep the tcp connection alive
 pub(crate) async fn keepalive(
-    stream: &TcpStream,
+    stream: &mut TcpStream,
     interval: Duration,
 ) -> Result<(), std::io::Error> {
-    todo!()
+    let mut interval = tokio::time::interval(interval);
+    let mut buf = [0u8; BUF_SIZE];
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                stream.write_all(b"\n").await?;
+            }
+
+            res = stream.read(&mut buf) => match res {
+                // receive FIN
+                Ok(0) => return Ok(()),
+                // ignore
+                Ok(_) => {}
+                Err(e) => return Err(e)
+            }
+        }
+    }
 }

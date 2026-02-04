@@ -39,7 +39,11 @@ impl TcpReactor {
                 })
                 .await
             {
-                Ok(stream) => keepalive(&stream, self.tick_interval).await?,
+                Ok(mut stream) => {
+                    if let Err(e) = keepalive(&mut stream, self.tick_interval).await {
+                        todo!()
+                    }
+                }
                 Err(e) => {
                     todo!("retry or abort")
                 }
