@@ -6,12 +6,9 @@ use stun::{
 };
 use tokio::net::TcpStream;
 
-use crate::{
-    addr::RemoteAddr,
-    error::{Error, StunError},
-};
+use crate::{addr::RemoteAddr, error::Error};
 
-fn create_binding_req() -> Result<Vec<u8>, StunError> {
+fn create_binding_req() -> Result<Vec<u8>, crate::error::StunError> {
     let mut msg = Message::new();
     let tx_id = TransactionId::new();
     msg.build(&[Box::new(BINDING_REQUEST), Box::new(tx_id)])?;

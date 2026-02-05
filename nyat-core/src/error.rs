@@ -1,17 +1,20 @@
 use error_set::error_set;
+
+use crate::reactor::TcpStreamError;
 // TODO: very awful error handling
 error_set!(
-    StunError := {
-        MessageBuild,
-    }
-    pub Error := StunError || {
+    pub Error := {
     Io(std::io::Error),
-    DNS,
+    TcpStream(TcpStreamError),
+    Keepalive,
+    Stun(StunError)
     }
 );
 
-impl From<stun::Error> for StunError {
-    fn from(_value: stun::Error) -> Self {
-        StunError::MessageBuild
-    }
+#[derive(Debug, thiserror::Error)]
+#[error("Stun error")]
+pub(crate) struct StunError {
+    #[source]
+    #[from]
+    innner: stun::Error,
 }

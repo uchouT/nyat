@@ -11,7 +11,7 @@ use crate::{
 
 error_set::error_set! {
     TcpStreamError := {
-        SocketCreation(std::io::Error),
+        Socket(std::io::Error),
         Dns(DnsError),
         Connection(std::io::Error),
         Stun,
@@ -27,8 +27,11 @@ pub struct TcpReactor {
 }
 
 impl TcpReactor {
+    const RETRY_LTD: usize = 5;
     async fn run(&self) -> Result<(), crate::error::Error> {
         let mut current_ip = None;
+        let mut retry_cnt = 0usize;
+
         loop {
             match self
                 .stream_and_for_address(|s| {
@@ -41,12 +44,29 @@ impl TcpReactor {
             {
                 Ok(mut stream) => {
                     if let Err(e) = keepalive(&mut stream, self.tick_interval).await {
-                        todo!()
+                        if {
+                            retry_cnt += 1;
+                            retry_cnt
+                        } >= TcpReactor::RETRY_LTD
+                        {
+                            break Err(e)?;
+                        }
+                    } else {
+                        retry_cnt = 0;
                     }
                 }
-                Err(e) => {
-                    todo!("retry or abort")
-                }
+                Err(e) => match e {
+                    TcpStreamError::Socket(_) => return Err(e)?,
+                    _ => {
+                        if {
+                            retry_cnt += 1;
+                            retry_cnt
+                        } >= TcpReactor::RETRY_LTD
+                        {
+                            return Err(e)?;
+                        }
+                    }
+                },
             }
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
@@ -60,11 +80,11 @@ impl TcpReactor {
         let socket_ka = self
             .local
             .socket(crate::util::Protocol::Tcp)
-            .map_err(TcpStreamError::SocketCreation)?;
+            .map_err(TcpStreamError::Socket)?;
         let socket_st = self
             .local
             .socket(crate::util::Protocol::Tcp)
-            .map_err(TcpStreamError::SocketCreation)?;
+            .map_err(TcpStreamError::Socket)?;
 
         let (addr_ka, addr_st) = try_join!(self.remote.socket_addr(), self.stun.socket_addr())?;
 

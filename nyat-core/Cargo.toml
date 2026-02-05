@@ -8,5 +8,6 @@ error_set = { workspace = true }
 smallvec = { workspace = true }
 socket2 = { workspace = true }
 stun = { workspace = true }
+thiserror = "2.0.18"
 tokio = { workspace = true }
 url.workspace = true
