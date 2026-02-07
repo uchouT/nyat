@@ -34,4 +34,7 @@ pub(crate) enum StunError {
         #[from]
         std::io::Error,
     ),
+
+    #[error("miss match transaction id")]
+    TnsactionIdMissMatch,
 }
