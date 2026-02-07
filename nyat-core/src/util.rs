@@ -2,11 +2,12 @@ use socket2::Socket;
 use std::{
     mem::{MaybeUninit, transmute},
     net::SocketAddr,
+    num::NonZeroUsize,
     time::Duration,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
+    net::{TcpStream, UdpSocket},
 };
 
 #[derive(Clone, Copy)]
@@ -74,10 +75,11 @@ pub(crate) async fn keepalive(
 ) -> Result<(), std::io::Error> {
     let mut interval = tokio::time::interval(interval);
     let mut buf = [0u8; BUF_SIZE];
+    stream.write_all(b"nya").await?;
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                stream.write_all(b"\n").await?;
+                stream.write_all(b"nya").await?;
             }
 
             res = stream.read(&mut buf) => match res {
@@ -88,5 +90,28 @@ pub(crate) async fn keepalive(
                 Err(e) => return Err(e)
             }
         }
+    }
+}
+
+pub(crate) async fn keepalive_udp<F: FnMut(SocketAddr)>(
+    socket_st: &UdpSocket,
+    socket_ka: &UdpSocket,
+    stun_addr: SocketAddr,
+    tick_interval: std::time::Duration,
+    check_per_tick: NonZeroUsize,
+    mut socket_addr: F,
+) -> Result<(), crate::error::Error> {
+    let mut interval = tokio::time::interval(tick_interval);
+    let mut cnt = 0;
+    loop {
+        cnt += 1;
+        if cnt == check_per_tick.get() {
+            cnt = 0;
+            let socket_pub = crate::stun::udp_stun(socket_st).await?;
+            socket_addr(socket_pub);
+        } else {
+            socket_ka.send_to(b"nya", stun_addr).await?;
+        }
+        interval.tick().await;
     }
 }

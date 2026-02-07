@@ -6,6 +6,7 @@ use crate::{
 };
 use smallvec::SmallVec;
 use socket2::{Domain, Socket, Type};
+use tokio::net::UdpSocket;
 
 pub struct LocalAddr {
     local_addr: SocketAddr,
@@ -42,6 +43,11 @@ impl LocalAddr {
         // TODO: add error handling
         socket.bind(&self.local_addr.into())?;
         Ok(socket)
+    }
+
+    pub(crate) fn udp_socket(&self) -> std::io::Result<tokio::net::UdpSocket> {
+        let socket = self.socket(Protocol::Udp)?;
+        UdpSocket::from_std(socket.into())
     }
 }
 

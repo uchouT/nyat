@@ -1,6 +1,6 @@
 use error_set::error_set;
 
-use crate::reactor::TcpStreamError;
+use crate::{reactor::TcpStreamError, util::DnsError};
 // TODO: very awful error handling
 error_set!(
     pub Error := {
@@ -12,9 +12,26 @@ error_set!(
 );
 
 #[derive(Debug, thiserror::Error)]
-#[error("Stun error")]
-pub(crate) struct StunError {
-    #[source]
-    #[from]
-    innner: stun::Error,
+pub(crate) enum StunError {
+    #[error("Failed to parse stun server DNS")]
+    Dns(
+        #[source]
+        #[from]
+        DnsError,
+    ),
+
+    // TODO: delete this enum variant after testing
+    #[error("Internal stun error")]
+    Stun(
+        #[source]
+        #[from]
+        stun::Error,
+    ),
+
+    #[error("Failed to interact with stun server")]
+    Network(
+        #[source]
+        #[from]
+        std::io::Error,
+    ),
 }
