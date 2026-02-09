@@ -1,6 +1,6 @@
 //! event loop
 
-use crate::util::DnsError;
+use crate::net::DnsError;
 
 mod tcp;
 mod udp;

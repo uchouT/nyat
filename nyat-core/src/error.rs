@@ -1,6 +1,6 @@
 use error_set::error_set;
 
-use crate::{reactor::TcpStreamError, util::DnsError};
+use crate::{net::DnsError, reactor::TcpStreamError};
 // TODO: very awful error handling
 error_set!(
     pub Error := {

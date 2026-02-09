@@ -8,13 +8,10 @@ use stun::{
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpStream, UdpSocket},
+    net::{TcpStream, ToSocketAddrs, UdpSocket},
 };
 
-use crate::{
-    addr::RemoteAddr,
-    error::{Error, StunError},
-};
+use crate::error::StunError;
 
 fn create_binding_req() -> Result<(impl AsRef<[u8]>, TransactionId), crate::error::StunError> {
     let mut msg = Message::new();
@@ -36,7 +33,8 @@ fn parse_pub_socket_addr(data: &[u8], tx_id: TransactionId) -> Result<SocketAddr
 
 const BUF_SIZE: usize = 1024;
 
-pub(crate) async fn tcp_stun(mut stream: TcpStream) -> Result<SocketAddr, StunError> {
+/// get public socket address from stun server tcp stream
+pub(crate) async fn tcp_socket_addr(mut stream: TcpStream) -> Result<SocketAddr, StunError> {
     let (msg, tx_id) = create_binding_req()?;
     stream.write_all(msg.as_ref()).await?;
 
@@ -53,9 +51,25 @@ pub(crate) async fn tcp_stun(mut stream: TcpStream) -> Result<SocketAddr, StunEr
     parse_pub_socket_addr(&buf, tx_id)
 }
 
-/// socket must be connected to the stun socket addr
-pub(crate) async fn udp_stun(socket: &UdpSocket) -> Result<SocketAddr, StunError> {
+/// Udp socket that has connected to a stun server
+#[derive(Clone, Copy)]
+pub(crate) struct StunUdpSocket<'a> {
+    pub inner: &'a UdpSocket,
+}
+
+impl<'a> StunUdpSocket<'a> {
+    pub(crate) async fn new<A: ToSocketAddrs>(
+        udpsocket: &'a UdpSocket,
+        stun_addr: A,
+    ) -> Result<Self, std::io::Error> {
+        udpsocket.connect(stun_addr).await?;
+        Ok(Self { inner: udpsocket })
+    }
+}
+/// get public socket address from stun server udp socket
+pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketAddr, StunError> {
     // TODO: error handling
+    let socket = socket.inner;
     let (msg, tx_id) = create_binding_req()?;
     let mut buf = [0u8; 1024];
     socket.send(msg.as_ref()).await?;
@@ -65,4 +79,19 @@ pub(crate) async fn udp_stun(socket: &UdpSocket) -> Result<SocketAddr, StunError
     } else {
         todo!("retry")
     }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    fn test_binding_msg() {
+        let res = create_binding_req();
+        assert!(res.is_ok());
+        let (_, id) = res.unwrap();
+    }
+
+    // #[tokio::test]
+    // async fn test_udp_stun() {
+    //     todo!()
+    // }
 }

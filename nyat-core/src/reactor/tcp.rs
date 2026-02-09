@@ -1,11 +1,15 @@
 use std::{net::SocketAddr, time::Duration};
 
-use tokio::{net::TcpStream, try_join};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+    try_join,
+};
 
 use crate::{
     addr::{LocalAddr, RemoteAddr},
+    net::connect_remote,
     reactor::TcpStreamError,
-    util::{connect_remote, keepalive},
 };
 
 pub struct TcpReactor {
@@ -29,7 +33,7 @@ impl TcpReactor {
                 let _ = self.sender.send(s);
             }
         };
-        
+
         loop {
             match self.stream_and_for_address(&mut handler).await {
                 Ok(mut stream) => {
@@ -69,11 +73,11 @@ impl TcpReactor {
     ) -> Result<TcpStream, TcpStreamError> {
         let socket_ka = self
             .local
-            .socket(crate::util::Protocol::Tcp)
+            .socket(crate::net::Protocol::Tcp)
             .map_err(TcpStreamError::Socket)?;
         let socket_st = self
             .local
-            .socket(crate::util::Protocol::Tcp)
+            .socket(crate::net::Protocol::Tcp)
             .map_err(TcpStreamError::Socket)?;
 
         let (addr_ka, addr_st) = try_join!(self.remote.socket_addr(), self.stun.socket_addr())?;
@@ -89,7 +93,7 @@ impl TcpReactor {
                 let stun_stream = connect_remote(socket_st, addr_st)
                     .await
                     .map_err(TcpStreamError::Connection)?;
-                let socket_addr = crate::stun::tcp_stun(stun_stream)
+                let socket_addr = crate::stun::tcp_socket_addr(stun_stream)
                     .await
                     .map_err(|_| TcpStreamError::Stun)?;
                 pub_addr(socket_addr);
@@ -97,5 +101,29 @@ impl TcpReactor {
             }
         )
         .map(|(stream, _)| stream)
+    }
+}
+
+const BUF_SIZE: usize = 1024;
+
+/// send tick to keep the tcp connection alive
+async fn keepalive(stream: &mut TcpStream, interval: Duration) -> Result<(), std::io::Error> {
+    let mut interval = tokio::time::interval(interval);
+    let mut buf = [0u8; BUF_SIZE];
+    stream.write_all(b"nya").await?;
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                stream.write_all(b"nya").await?;
+            }
+
+            res = stream.read(&mut buf) => match res {
+                // receive FIN
+                Ok(0) => return Ok(()),
+                // ignore
+                Ok(_) => {}
+                Err(e) => return Err(e)
+            }
+        }
     }
 }

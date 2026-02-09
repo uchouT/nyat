@@ -1,9 +1,6 @@
 use std::net::SocketAddr;
 
-use crate::{
-    error::Error,
-    util::{DnsError, Protocol, resolve_dns},
-};
+use crate::net::{DnsError, Protocol, resolve_dns};
 use smallvec::SmallVec;
 use socket2::{Domain, Socket, Type};
 use tokio::net::UdpSocket;
@@ -40,7 +37,7 @@ impl LocalAddr {
         if let Some(iface) = &self.iface {
             socket.bind_device(Some(iface))?;
         }
-        // TODO: add error handling
+        // TODO: getpid_fd force to set reuse port
         socket.bind(&self.local_addr.into())?;
         Ok(socket)
     }
