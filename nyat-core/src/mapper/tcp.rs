@@ -8,8 +8,8 @@ use tokio::{
 
 use crate::{
     addr::{LocalAddr, RemoteAddr},
+    error::Error,
     net::connect_remote,
-    reactor::TcpStreamError,
 };
 
 pub struct TcpReactor {
@@ -22,7 +22,7 @@ pub struct TcpReactor {
 
 impl TcpReactor {
     const RETRY_LTD: usize = 5;
-    async fn run(&self) -> Result<(), crate::error::Error> {
+    async fn run(&self) -> Result<(), Error> {
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 
@@ -43,21 +43,21 @@ impl TcpReactor {
                             retry_cnt
                         } >= TcpReactor::RETRY_LTD
                         {
-                            break Err(e)?;
+                            break Err(Error::Keepalive(e));
                         }
                     } else {
                         retry_cnt = 0;
                     }
                 }
                 Err(e) => match e {
-                    TcpStreamError::Socket(_) => return Err(e)?,
+                    Error::Socket(_) => return Err(e),
                     _ => {
                         if {
                             retry_cnt += 1;
                             retry_cnt
                         } >= TcpReactor::RETRY_LTD
                         {
-                            return Err(e)?;
+                            return Err(e);
                         }
                     }
                 },
@@ -66,19 +66,19 @@ impl TcpReactor {
         }
     }
 
-    /// Create keepalive tcp stream and
+    /// Create keepalive tcp stream and get public address via STUN
     async fn stream_and_for_address<F: FnMut(SocketAddr)>(
         &self,
         mut pub_addr: F,
-    ) -> Result<TcpStream, TcpStreamError> {
+    ) -> Result<TcpStream, Error> {
         let socket_ka = self
             .local
             .socket(crate::net::Protocol::Tcp)
-            .map_err(TcpStreamError::Socket)?;
+            .map_err(Error::Socket)?;
         let socket_st = self
             .local
             .socket(crate::net::Protocol::Tcp)
-            .map_err(TcpStreamError::Socket)?;
+            .map_err(Error::Socket)?;
 
         let (addr_ka, addr_st) = try_join!(self.remote.socket_addr(), self.stun.socket_addr())?;
 
@@ -87,15 +87,13 @@ impl TcpReactor {
             async {
                 connect_remote(socket_ka, addr_ka)
                     .await
-                    .map_err(TcpStreamError::Connection)
+                    .map_err(Error::Connection)
             },
             async {
                 let stun_stream = connect_remote(socket_st, addr_st)
                     .await
-                    .map_err(TcpStreamError::Connection)?;
-                let socket_addr = crate::stun::tcp_socket_addr(stun_stream)
-                    .await
-                    .map_err(|_| TcpStreamError::Stun)?;
+                    .map_err(Error::Connection)?;
+                let socket_addr = crate::stun::tcp_socket_addr(stun_stream).await?;
                 pub_addr(socket_addr);
                 Ok(())
             }

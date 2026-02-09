@@ -13,11 +13,13 @@ pub(crate) enum IpVer {
     V4,
 }
 
-error_set::error_set! {
-    DnsError {
-        Resolve(std::io::Error),
-        Notfound,
-    }
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DnsError {
+    #[error("DNS lookup failed")]
+    Resolve(#[from] std::io::Error),
+    #[error("no matching address found")]
+    NotFound,
 }
 
 pub(crate) async fn resolve_dns<T: tokio::net::ToSocketAddrs>(
@@ -34,7 +36,7 @@ pub(crate) async fn resolve_dns<T: tokio::net::ToSocketAddrs>(
     } else {
         addrs.next()
     }
-    .ok_or(DnsError::Notfound)
+    .ok_or(DnsError::NotFound)
 }
 
 /// create tcp stream

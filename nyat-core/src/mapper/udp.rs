@@ -4,7 +4,7 @@ use tokio::net::UdpSocket;
 
 use crate::{
     addr::{LocalAddr, RemoteAddr},
-    error::StunError,
+    error::Error,
     stun::StunUdpSocket,
 };
 
@@ -17,9 +17,9 @@ pub struct UdpReactor {
 }
 
 impl UdpReactor {
-    pub async fn run(&self) -> Result<(), crate::error::Error> {
-        let socket_st = self.local.udp_socket()?;
-        let socket_ka = self.local.udp_socket()?;
+    pub async fn run(&self) -> Result<(), Error> {
+        let socket_st = self.local.udp_socket().map_err(Error::Socket)?;
+        let socket_ka = self.local.udp_socket().map_err(Error::Socket)?;
         let mut current_ip = None;
         // handler to update public address
         let mut handler = |s| {
@@ -29,8 +29,10 @@ impl UdpReactor {
             }
         };
         loop {
-            let stun_addr = self.stun.socket_addr().await.map_err(StunError::from)?;
-            let socket_st = StunUdpSocket::new(&socket_st, stun_addr).await?;
+            let stun_addr = self.stun.socket_addr().await?;
+            let socket_st = StunUdpSocket::new(&socket_st, stun_addr)
+                .await
+                .map_err(Error::Connection)?;
             self.keepalive(socket_st, &socket_ka, stun_addr, &mut handler)
                 .await;
         }
@@ -42,7 +44,7 @@ impl UdpReactor {
         socket_ka: &UdpSocket,
         stun_addr: SocketAddr,
         mut socket_addr: F,
-    ) -> Result<(), crate::error::Error> {
+    ) -> Result<(), Error> {
         let mut interval = tokio::time::interval(self.interval);
         let mut cnt = 0;
         loop {
@@ -52,7 +54,10 @@ impl UdpReactor {
                 let socket_pub = crate::stun::udp_socket_addr(socket_st).await?;
                 socket_addr(socket_pub);
             } else {
-                socket_ka.send_to(b"nya", stun_addr).await?;
+                socket_ka
+                    .send_to(b"nya", stun_addr)
+                    .await
+                    .map_err(Error::Keepalive)?;
             }
             interval.tick().await;
         }

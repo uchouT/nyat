@@ -11,9 +11,28 @@ use tokio::{
     net::{TcpStream, ToSocketAddrs, UdpSocket},
 };
 
-use crate::error::StunError;
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum StunError {
+    #[error("STUN protocol error")]
+    Protocol(
+        #[source]
+        #[from]
+        stun::Error,
+    ),
 
-fn create_binding_req() -> Result<(impl AsRef<[u8]>, TransactionId), crate::error::StunError> {
+    #[error("STUN network I/O error")]
+    Network(
+        #[source]
+        #[from]
+        std::io::Error,
+    ),
+
+    #[error("STUN transaction ID mismatch")]
+    TransactionIdMismatch,
+}
+
+fn create_binding_req() -> Result<(impl AsRef<[u8]>, TransactionId), StunError> {
     let mut msg = Message::new();
     let tx_id = TransactionId::new();
     msg.build(&[Box::new(BINDING_REQUEST), Box::new(tx_id)])?;
@@ -24,7 +43,7 @@ fn parse_pub_socket_addr(data: &[u8], tx_id: TransactionId) -> Result<SocketAddr
     let mut msg = Message::new();
     msg.unmarshal_binary(data)?;
     if msg.transaction_id != tx_id {
-        return Err(StunError::TnsactionIdMissMatch);
+        return Err(StunError::TransactionIdMismatch);
     }
     let mut xor_addr = XorMappedAddress::default();
     xor_addr.get_from(&msg)?;

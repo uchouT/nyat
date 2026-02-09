@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = { workspace = true }
 
 [dependencies]
-error_set = { workspace = true }
 smallvec = { workspace = true }
 socket2 = { workspace = true }
 stun = { workspace = true }

@@ -1,40 +1,38 @@
-use error_set::error_set;
+use crate::net::DnsError;
+use crate::stun::StunError;
 
-use crate::{net::DnsError, reactor::TcpStreamError};
-// TODO: very awful error handling
-error_set!(
-    pub Error := {
-    Io(std::io::Error),
-    TcpStream(TcpStreamError),
-    Keepalive,
-    Stun(StunError)
-    }
-);
-
+/// Top-level error type for nyat-core.
+///
+/// Each variant represents a semantically distinct failure category
+/// that callers can meaningfully react to.
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum StunError {
-    #[error("Failed to parse stun server DNS")]
+#[non_exhaustive]
+pub enum Error {
+    /// Socket creation or bind failed (typically unrecoverable)
+    #[error("socket creation/bind failed")]
+    Socket(#[source] std::io::Error),
+
+    /// DNS resolution failed
+    #[error("DNS resolution failed")]
     Dns(
         #[source]
         #[from]
         DnsError,
     ),
 
-    // TODO: delete this enum variant after testing
-    #[error("Internal stun error")]
+    /// TCP/UDP connection to remote failed
+    #[error("connection failed")]
+    Connection(#[source] std::io::Error),
+
+    /// STUN protocol interaction failed
+    #[error("STUN error")]
     Stun(
         #[source]
         #[from]
-        stun::Error,
+        StunError,
     ),
 
-    #[error("Failed to interact with stun server")]
-    Network(
-        #[source]
-        #[from]
-        std::io::Error,
-    ),
-
-    #[error("miss match transaction id")]
-    TnsactionIdMissMatch,
+    /// Keepalive I/O failed (connection likely broken)
+    #[error("keepalive failed")]
+    Keepalive(#[source] std::io::Error),
 }
