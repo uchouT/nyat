@@ -3,12 +3,13 @@ use std::net::SocketAddr;
 use tokio::net::TcpStream;
 
 #[derive(Clone, Copy)]
-pub(crate) enum Protocol {
+pub enum Protocol {
     Tcp,
     Udp,
 }
 
-pub(crate) enum IpVer {
+#[derive(Clone, Copy)]
+pub enum IpVer {
     V6,
     V4,
 }

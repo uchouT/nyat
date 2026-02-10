@@ -1,4 +1,4 @@
 //! NAT mapping sessions
 
-mod tcp;
-mod udp;
+pub mod tcp;
+pub mod udp;

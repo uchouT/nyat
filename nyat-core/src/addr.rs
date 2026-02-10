@@ -1,17 +1,35 @@
 use std::net::SocketAddr;
 
-use crate::net::{DnsError, Protocol, resolve_dns};
+use crate::net::{DnsError, IpVer, Protocol, resolve_dns};
 use smallvec::SmallVec;
 use socket2::{Domain, Socket, Type};
 use tokio::net::UdpSocket;
 
-pub struct LocalAddr {
+pub struct Local {
     local_addr: SocketAddr,
     fmark: Option<u32>,
     iface: Option<SmallVec<[u8; 16]>>,
 }
 
-impl LocalAddr {
+impl Local {
+    pub fn new(local_addr: SocketAddr) -> Self {
+        Self {
+            local_addr,
+            fmark: None,
+            iface: None,
+        }
+    }
+
+    pub fn with_fmark(mut self, fmark: u32) -> Self {
+        self.fmark = Some(fmark);
+        self
+    }
+
+    pub fn with_iface(mut self, iface: impl AsRef<[u8]>) -> Self {
+        self.iface = Some(iface.as_ref().into());
+        self
+    }
+
     /// Create non-blocking & reuse port & reuse address, with no-exec flag
     /// and bind the local address
     /// TODO: cross platform support
@@ -48,19 +66,53 @@ impl LocalAddr {
     }
 }
 
-pub(crate) enum RemoteAddr {
+pub enum RemoteAddr {
     /// bare socket address
-    SocketAddr(SocketAddr),
+    Resolved(SocketAddr),
     /// domain, requires DNS
-    Host { domain: String, port: u16 },
+    Host {
+        domain: String,
+        port: u16,
+        ver_prefered: Option<IpVer>,
+    },
 }
 
 impl RemoteAddr {
+    pub fn from_addr(addr: SocketAddr) -> Self {
+        Self::Resolved(addr)
+    }
+
+    pub fn from_host(domain: impl Into<String>, port: u16, ver_prefered: Option<IpVer>) -> Self {
+        Self::Host {
+            domain: domain.into(),
+            port,
+            ver_prefered,
+        }
+    }
+
     /// get socket addr from remote addr
     pub(crate) async fn socket_addr(&self) -> Result<SocketAddr, DnsError> {
         match self {
-            Self::SocketAddr(addr) => Ok(*addr),
-            Self::Host { domain, port } => resolve_dns((domain.as_ref(), *port), None).await,
+            Self::Host {
+                domain,
+                port,
+                ver_prefered,
+            } => resolve_dns((domain.as_ref(), *port), *ver_prefered).await,
+            Self::Resolved(addr) => Ok(*addr),
         }
+    }
+
+    #[inline]
+    pub(crate) const fn socket_addr_resolved(&self) -> SocketAddr {
+        match self {
+            Self::Resolved(socket_addr) => *socket_addr,
+            _ => panic!("RemoteAddr is not resolved"),
+        }
+    }
+}
+
+impl From<SocketAddr> for RemoteAddr {
+    fn from(addr: SocketAddr) -> Self {
+        Self::Resolved(addr)
     }
 }

@@ -7,20 +7,20 @@ use tokio::{
 };
 
 use crate::{
-    addr::{LocalAddr, RemoteAddr},
+    addr::{Local, RemoteAddr},
     error::Error,
     net::connect_remote,
 };
 
-pub struct TcpReactor {
+pub struct TcpMapper {
     remote: RemoteAddr,
     stun: RemoteAddr,
-    local: LocalAddr,
+    local: Local,
     tick_interval: Duration,
     sender: tokio::sync::watch::Sender<SocketAddr>,
 }
 
-impl TcpReactor {
+impl TcpMapper {
     const RETRY_LTD: usize = 5;
     async fn run(&self) -> Result<(), Error> {
         let mut current_ip = None;
@@ -41,7 +41,7 @@ impl TcpReactor {
                         if {
                             retry_cnt += 1;
                             retry_cnt
-                        } >= TcpReactor::RETRY_LTD
+                        } >= TcpMapper::RETRY_LTD
                         {
                             break Err(Error::Keepalive(e));
                         }
@@ -55,7 +55,7 @@ impl TcpReactor {
                         if {
                             retry_cnt += 1;
                             retry_cnt
-                        } >= TcpReactor::RETRY_LTD
+                        } >= TcpMapper::RETRY_LTD
                         {
                             return Err(e);
                         }

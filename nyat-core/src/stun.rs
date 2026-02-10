@@ -32,11 +32,11 @@ pub enum StunError {
     TransactionIdMismatch,
 }
 
-fn create_binding_req() -> Result<(impl AsRef<[u8]>, TransactionId), StunError> {
+fn create_binding_req() -> (impl AsRef<[u8]>, TransactionId) {
     let mut msg = Message::new();
     let tx_id = TransactionId::new();
-    msg.build(&[Box::new(BINDING_REQUEST), Box::new(tx_id)])?;
-    Ok((msg.marshal_binary()?, msg.transaction_id))
+    msg.build(&[Box::new(BINDING_REQUEST), Box::new(tx_id)]).unwrap();
+    (msg.marshal_binary().unwrap(), msg.transaction_id)
 }
 
 fn parse_pub_socket_addr(data: &[u8], tx_id: TransactionId) -> Result<SocketAddr, StunError> {
@@ -54,7 +54,7 @@ const BUF_SIZE: usize = 1024;
 
 /// get public socket address from stun server tcp stream
 pub(crate) async fn tcp_socket_addr(mut stream: TcpStream) -> Result<SocketAddr, StunError> {
-    let (msg, tx_id) = create_binding_req()?;
+    let (msg, tx_id) = create_binding_req();
     stream.write_all(msg.as_ref()).await?;
 
     let mut buf: SmallVec<[u8; BUF_SIZE]> = smallvec::SmallVec::new();
@@ -85,11 +85,12 @@ impl<'a> StunUdpSocket<'a> {
         Ok(Self { inner: udpsocket })
     }
 }
+
 /// get public socket address from stun server udp socket
 pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketAddr, StunError> {
     // TODO: error handling
     let socket = socket.inner;
-    let (msg, tx_id) = create_binding_req()?;
+    let (msg, tx_id) = create_binding_req();
     let mut buf = [0u8; 1024];
     socket.send(msg.as_ref()).await?;
     let len = socket.recv(&mut buf).await?;
@@ -102,12 +103,6 @@ pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketA
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    fn test_binding_msg() {
-        let res = create_binding_req();
-        assert!(res.is_ok());
-        let (_, id) = res.unwrap();
-    }
 
     // #[tokio::test]
     // async fn test_udp_stun() {
