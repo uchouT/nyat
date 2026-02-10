@@ -35,7 +35,8 @@ pub enum StunError {
 fn create_binding_req() -> (impl AsRef<[u8]>, TransactionId) {
     let mut msg = Message::new();
     let tx_id = TransactionId::new();
-    msg.build(&[Box::new(BINDING_REQUEST), Box::new(tx_id)]).unwrap();
+    msg.build(&[Box::new(BINDING_REQUEST), Box::new(tx_id)])
+        .unwrap();
     (msg.marshal_binary().unwrap(), msg.transaction_id)
 }
 

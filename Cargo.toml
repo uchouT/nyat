@@ -11,7 +11,7 @@ license = "MIT"
 smallvec = "1.15.1"
 socket2 = { version = "0.6.2", features = ["all"] }
 stun = "0.17.0"
-tokio = { version = "1.49.0", features = ["macros", "net", "sync", "time"] }
+tokio = { version = "1.49.0", features = ["macros", "net", "time"] }
 url = "2.5.8"
 
 [profile.dev]

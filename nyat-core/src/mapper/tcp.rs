@@ -9,6 +9,7 @@ use tokio::{
 use crate::{
     addr::{Local, RemoteAddr},
     error::Error,
+    mapper::SocketHandler,
     net::connect_remote,
 };
 
@@ -17,26 +18,21 @@ pub struct TcpMapper {
     stun: RemoteAddr,
     local: Local,
     tick_interval: Duration,
-    sender: tokio::sync::watch::Sender<SocketAddr>,
 }
 
 impl TcpMapper {
     const RETRY_LTD: usize = 5;
-    async fn run(&self) -> Result<(), Error> {
+    pub async fn run<H: SocketHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 
-        // handler to update public address
-        let mut handler = |s| {
-            if Some(s) != current_ip {
-                current_ip = Some(s);
-                let _ = self.sender.send(s);
-            }
-        };
-
         loop {
-            match self.stream_and_for_address(&mut handler).await {
-                Ok(mut stream) => {
+            match self.stream_and_for_address().await {
+                Ok((mut stream, pub_addr)) => {
+                    if Some(pub_addr) != current_ip {
+                        current_ip = Some(pub_addr);
+                        handler.on_change(pub_addr);
+                    }
                     if let Err(e) = keepalive(&mut stream, self.tick_interval).await {
                         if {
                             retry_cnt += 1;
@@ -67,10 +63,7 @@ impl TcpMapper {
     }
 
     /// Create keepalive tcp stream and get public address via STUN
-    async fn stream_and_for_address<F: FnMut(SocketAddr)>(
-        &self,
-        mut pub_addr: F,
-    ) -> Result<TcpStream, Error> {
+    async fn stream_and_for_address(&self) -> Result<(TcpStream, SocketAddr), Error> {
         let socket_ka = self
             .local
             .socket(crate::net::Protocol::Tcp)
@@ -93,12 +86,11 @@ impl TcpMapper {
                 let stun_stream = connect_remote(socket_st, addr_st)
                     .await
                     .map_err(Error::Connection)?;
-                let socket_addr = crate::stun::tcp_socket_addr(stun_stream).await?;
-                pub_addr(socket_addr);
-                Ok(())
+                crate::stun::tcp_socket_addr(stun_stream)
+                    .await
+                    .map_err(Error::from)
             }
         )
-        .map(|(stream, _)| stream)
     }
 }
 

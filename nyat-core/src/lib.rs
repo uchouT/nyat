@@ -1,5 +1,5 @@
 pub mod addr;
 pub mod error;
-pub mod net;
 pub mod mapper;
+pub mod net;
 mod stun;
