@@ -1,6 +1,6 @@
-use std::net::SocketAddr;
-
+use crate::error::StunError;
 use smallvec::SmallVec;
+use std::net::SocketAddr;
 use stun::{
     agent::TransactionId,
     message::{BINDING_REQUEST, Getter, Message},
@@ -10,27 +10,6 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpStream, ToSocketAddrs, UdpSocket},
 };
-
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum StunError {
-    #[error("STUN protocol error")]
-    Protocol(
-        #[source]
-        #[from]
-        stun::Error,
-    ),
-
-    #[error("STUN network I/O error")]
-    Network(
-        #[source]
-        #[from]
-        std::io::Error,
-    ),
-
-    #[error("STUN transaction ID mismatch")]
-    TransactionIdMismatch,
-}
 
 fn create_binding_req() -> (impl AsRef<[u8]>, TransactionId) {
     let mut msg = Message::new();

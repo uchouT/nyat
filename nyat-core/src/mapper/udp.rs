@@ -3,27 +3,27 @@ use std::{net::SocketAddr, num::NonZeroUsize, time::Duration};
 use tokio::net::UdpSocket;
 
 use crate::{
-    addr::{Local, RemoteAddr},
     error::Error,
-    mapper::SocketHandler,
+    mapper::MappingHandler,
+    net::{LocalAddr, RemoteAddr},
     stun::StunUdpSocket,
 };
 
 pub struct UdpMapper {
     stun: RemoteAddr,
-    local: Local,
+    local: LocalAddr,
     interval: Duration,
     check_per_tick: NonZeroUsize,
 }
 
 impl UdpMapper {
-    pub async fn run<H: SocketHandler>(&self, handler: &mut H) -> Result<(), Error> {
+    pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let socket_st = self.local.udp_socket().map_err(Error::Socket)?;
         let socket_ka = self.local.udp_socket().map_err(Error::Socket)?;
         let mut current_ip = None;
 
         loop {
-            let stun_addr = if matches!(self.stun, RemoteAddr::Resolved(_)) {
+            let stun_addr = if self.stun.is_resolved() {
                 self.stun.socket_addr_resolved()
             } else {
                 self.stun.socket_addr().await?
@@ -39,7 +39,7 @@ impl UdpMapper {
         }
     }
 
-    async fn keepalive<H: SocketHandler>(
+    async fn keepalive<H: MappingHandler>(
         &self,
         socket_st: StunUdpSocket<'_>,
         socket_ka: &UdpSocket,

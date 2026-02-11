@@ -7,22 +7,22 @@ use tokio::{
 };
 
 use crate::{
-    addr::{Local, RemoteAddr},
     error::Error,
-    mapper::SocketHandler,
+    mapper::MappingHandler,
     net::connect_remote,
+    net::{LocalAddr, RemoteAddr},
 };
 
 pub struct TcpMapper {
     remote: RemoteAddr,
     stun: RemoteAddr,
-    local: Local,
+    local: LocalAddr,
     tick_interval: Duration,
 }
 
 impl TcpMapper {
     const RETRY_LTD: usize = 5;
-    pub async fn run<H: SocketHandler>(&self, handler: &mut H) -> Result<(), Error> {
+    pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 

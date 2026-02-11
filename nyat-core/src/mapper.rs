@@ -2,20 +2,20 @@
 
 use std::{net::SocketAddr, num::NonZeroUsize, time::Duration};
 
-use crate::{
-    addr::{Local, RemoteAddr},
-    mapper::{tcp::TcpMapper, udp::UdpMapper},
-};
+use crate::net::{LocalAddr, RemoteAddr};
 
-pub mod tcp;
-pub mod udp;
+mod tcp;
+mod udp;
+
+pub use tcp::TcpMapper;
+pub use udp::UdpMapper;
 
 /// public socket address change handler
-pub trait SocketHandler {
+pub trait MappingHandler {
     fn on_change(&mut self, new_addr: SocketAddr);
 }
 
-impl<F: FnMut(SocketAddr)> SocketHandler for F {
+impl<F: FnMut(SocketAddr)> MappingHandler for F {
     fn on_change(&mut self, new_addr: SocketAddr) {
         self(new_addr)
     }
@@ -28,7 +28,7 @@ pub struct MissingTcpRemote;
 pub struct WithTcpRemote(RemoteAddr);
 
 pub struct MapperBuilder<S> {
-    local: Local,
+    local: LocalAddr,
     stun: RemoteAddr,
     interval: Option<Duration>,
     check_per_tick: Option<NonZeroUsize>,
@@ -36,7 +36,7 @@ pub struct MapperBuilder<S> {
 }
 
 impl MapperBuilder<MissingTcpRemote> {
-    pub fn new(local: Local, stun_addr: RemoteAddr) -> Self {
+    pub fn new(local: LocalAddr, stun_addr: RemoteAddr) -> Self {
         Self {
             local,
             stun: stun_addr,
