@@ -9,6 +9,7 @@ use crate::{
     stun::StunUdpSocket,
 };
 
+/// Sends UDP keepalive packets and periodically discovers the public address via STUN.
 pub struct UdpMapper {
     stun: RemoteAddr,
     local: LocalAddr,
@@ -17,6 +18,7 @@ pub struct UdpMapper {
 }
 
 impl UdpMapper {
+    /// Run the keepalive loop, calling `handler` whenever the public address changes.
     pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let socket_st = self.local.udp_socket().map_err(Error::Socket)?;
         let socket_ka = self.local.udp_socket().map_err(Error::Socket)?;

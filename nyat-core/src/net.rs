@@ -1,3 +1,5 @@
+//! Network address types and low-level socket utilities.
+
 use std::net::SocketAddr;
 
 use smallvec::SmallVec;
@@ -6,6 +8,13 @@ use tokio::net::{TcpStream, UdpSocket};
 
 use crate::error::DnsError;
 
+/// Local bind configuration: address, optional fwmark, and interface binding.
+///
+/// Sockets created from this config have `SO_REUSEPORT` and `SO_REUSEADDR` set.
+///
+/// # Platform support
+///
+/// `with_fmark` and `with_iface` are Linux-only.
 pub struct LocalAddr {
     local_addr: SocketAddr,
     fmark: Option<u32>,
@@ -13,6 +22,7 @@ pub struct LocalAddr {
 }
 
 impl LocalAddr {
+    /// Create a new local bind config for the given address.
     pub fn new(local_addr: SocketAddr) -> Self {
         Self {
             local_addr,
@@ -21,11 +31,13 @@ impl LocalAddr {
         }
     }
 
+    /// Set `SO_MARK` (Linux fwmark) for policy routing.
     pub fn with_fmark(mut self, fmark: u32) -> Self {
         self.fmark = Some(fmark);
         self
     }
 
+    /// Bind to a specific network interface (e.g. `b"eth0"`).
     pub fn with_iface(mut self, iface: impl AsRef<[u8]>) -> Self {
         self.iface = Some(iface.as_ref().into());
         self
@@ -67,6 +79,10 @@ impl LocalAddr {
     }
 }
 
+/// Remote endpoint address, either a resolved IP or a domain requiring DNS lookup.
+///
+/// Construct via [`RemoteAddr::from_addr`], [`RemoteAddr::from_host`],
+/// or `From<SocketAddr>`.
 pub struct RemoteAddr {
     kind: RemoteAddrKind,
 }
@@ -88,12 +104,14 @@ impl RemoteAddr {
         matches!(self.kind, RemoteAddrKind::Resolved(_))
     }
 
+    /// Create from a resolved `SocketAddr` (no DNS needed).
     pub fn from_addr(addr: SocketAddr) -> Self {
         Self {
             kind: RemoteAddrKind::Resolved(addr),
         }
     }
 
+    /// Create from a domain name and port. DNS resolution happens at connection time.
     pub fn from_host(domain: impl Into<String>, port: u16, ver_preference: Option<IpVer>) -> Self {
         Self {
             kind: RemoteAddrKind::Host {
@@ -134,9 +152,12 @@ impl From<SocketAddr> for RemoteAddr {
     }
 }
 
+/// IP version preference for DNS resolution.
 #[derive(Clone, Copy)]
 pub enum IpVer {
+    /// Prefer IPv6 addresses.
     V6,
+    /// Prefer IPv4 addresses.
     V4,
 }
 

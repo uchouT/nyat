@@ -13,6 +13,7 @@ use crate::{
     net::{LocalAddr, RemoteAddr},
 };
 
+/// Maintains a TCP connection and periodically discovers the public address via STUN.
 pub struct TcpMapper {
     remote: RemoteAddr,
     stun: RemoteAddr,
@@ -22,6 +23,9 @@ pub struct TcpMapper {
 
 impl TcpMapper {
     const RETRY_LTD: usize = 5;
+    /// Run the keepalive loop, calling `handler` whenever the public address changes.
+    ///
+    /// Returns only on unrecoverable error or after exhausting retries.
     pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
