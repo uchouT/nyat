@@ -92,6 +92,15 @@ impl TcpMapper {
             }
         )
     }
+
+    pub(super) fn new(builder: super::MapperBuilder<super::WithTcpRemote>) -> Self {
+        Self {
+            remote: builder.state.0,
+            stun: builder.stun,
+            local: builder.local,
+            tick_interval: builder.interval.unwrap_or(Duration::from_secs(30)),
+        }
+    }
 }
 
 const BUF_SIZE: usize = 1024;

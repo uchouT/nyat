@@ -55,6 +55,7 @@ impl UdpMapper {
                 cnt = 0;
                 let socket_pub = crate::stun::udp_socket_addr(socket_st).await?;
                 if current_ip != &Some(socket_pub) {
+                    *current_ip = Some(socket_pub);
                     handler.on_change(socket_pub);
                 }
             } else {
@@ -64,6 +65,17 @@ impl UdpMapper {
                     .map_err(Error::Keepalive)?;
             }
             interval.tick().await;
+        }
+    }
+
+    pub(super) fn new<S>(builder: super::MapperBuilder<S>) -> Self {
+        Self {
+            stun: builder.stun,
+            local: builder.local,
+            interval: builder.interval.unwrap_or(Duration::from_secs(30)),
+            check_per_tick: builder
+                .check_per_tick
+                .unwrap_or(NonZeroUsize::new(5).unwrap()),
         }
     }
 }
