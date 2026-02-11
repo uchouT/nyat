@@ -3,27 +3,29 @@ use std::{net::SocketAddr, num::NonZeroUsize, time::Duration};
 use tokio::net::UdpSocket;
 
 use crate::{
-    addr::{Local, RemoteAddr},
     error::Error,
-    mapper::SocketHandler,
+    mapper::MappingHandler,
+    net::{LocalAddr, RemoteAddr},
     stun::StunUdpSocket,
 };
 
+/// Sends UDP keepalive packets and periodically discovers the public address via STUN.
 pub struct UdpMapper {
     stun: RemoteAddr,
-    local: Local,
+    local: LocalAddr,
     interval: Duration,
     check_per_tick: NonZeroUsize,
 }
 
 impl UdpMapper {
-    pub async fn run<H: SocketHandler>(&self, handler: &mut H) -> Result<(), Error> {
+    /// Run the keepalive loop, calling `handler` whenever the public address changes.
+    pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let socket_st = self.local.udp_socket().map_err(Error::Socket)?;
         let socket_ka = self.local.udp_socket().map_err(Error::Socket)?;
         let mut current_ip = None;
 
         loop {
-            let stun_addr = if matches!(self.stun, RemoteAddr::Resolved(_)) {
+            let stun_addr = if self.stun.is_resolved() {
                 self.stun.socket_addr_resolved()
             } else {
                 self.stun.socket_addr().await?
@@ -39,7 +41,7 @@ impl UdpMapper {
         }
     }
 
-    async fn keepalive<H: SocketHandler>(
+    async fn keepalive<H: MappingHandler>(
         &self,
         socket_st: StunUdpSocket<'_>,
         socket_ka: &UdpSocket,
@@ -55,6 +57,7 @@ impl UdpMapper {
                 cnt = 0;
                 let socket_pub = crate::stun::udp_socket_addr(socket_st).await?;
                 if current_ip != &Some(socket_pub) {
+                    *current_ip = Some(socket_pub);
                     handler.on_change(socket_pub);
                 }
             } else {
@@ -64,6 +67,17 @@ impl UdpMapper {
                     .map_err(Error::Keepalive)?;
             }
             interval.tick().await;
+        }
+    }
+
+    pub(super) fn new<S>(builder: super::MapperBuilder<S>) -> Self {
+        Self {
+            stun: builder.stun,
+            local: builder.local,
+            interval: builder.interval.unwrap_or(Duration::from_secs(30)),
+            check_per_tick: builder
+                .check_per_tick
+                .unwrap_or(NonZeroUsize::new(5).unwrap()),
         }
     }
 }

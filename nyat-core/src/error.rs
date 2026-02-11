@@ -1,10 +1,9 @@
-use crate::net::DnsError;
-use crate::stun::StunError;
+//! Error types for nyat-core.
 
-/// Top-level error type for nyat-core.
+/// Top-level error returned by mapper operations.
 ///
-/// Each variant represents a semantically distinct failure category
-/// that callers can meaningfully react to.
+/// Each variant represents a semantically distinct failure that callers
+/// can match on to decide whether to retry or abort.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
@@ -35,4 +34,39 @@ pub enum Error {
     /// Keepalive I/O failed (connection likely broken)
     #[error("keepalive failed")]
     Keepalive(#[source] std::io::Error),
+}
+
+/// DNS resolution error.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DnsError {
+    /// The system DNS resolver returned an error.
+    #[error("DNS lookup failed")]
+    Resolve(#[from] std::io::Error),
+    /// DNS succeeded but returned no matching addresses.
+    #[error("no matching address found")]
+    NotFound,
+}
+
+/// STUN protocol error.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum StunError {
+    /// The STUN library returned a protocol-level error.
+    #[error("STUN protocol error")]
+    Protocol(
+        #[source]
+        #[from]
+        stun::Error,
+    ),
+
+    #[error("STUN network I/O error")]
+    Network(
+        #[source]
+        #[from]
+        std::io::Error,
+    ),
+
+    #[error("STUN transaction ID mismatch")]
+    TransactionIdMismatch,
 }

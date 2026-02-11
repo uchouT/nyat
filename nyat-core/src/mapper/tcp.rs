@@ -7,22 +7,26 @@ use tokio::{
 };
 
 use crate::{
-    addr::{Local, RemoteAddr},
     error::Error,
-    mapper::SocketHandler,
+    mapper::MappingHandler,
     net::connect_remote,
+    net::{LocalAddr, RemoteAddr},
 };
 
+/// Maintains a TCP connection and periodically discovers the public address via STUN.
 pub struct TcpMapper {
     remote: RemoteAddr,
     stun: RemoteAddr,
-    local: Local,
+    local: LocalAddr,
     tick_interval: Duration,
 }
 
 impl TcpMapper {
     const RETRY_LTD: usize = 5;
-    pub async fn run<H: SocketHandler>(&self, handler: &mut H) -> Result<(), Error> {
+    /// Run the keepalive loop, calling `handler` whenever the public address changes.
+    ///
+    /// Returns only on unrecoverable error or after exhausting retries.
+    pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 
@@ -91,6 +95,15 @@ impl TcpMapper {
                     .map_err(Error::from)
             }
         )
+    }
+
+    pub(super) fn new(builder: super::MapperBuilder<super::WithTcpRemote>) -> Self {
+        Self {
+            remote: builder.state.0,
+            stun: builder.stun,
+            local: builder.local,
+            tick_interval: builder.interval.unwrap_or(Duration::from_secs(30)),
+        }
     }
 }
 

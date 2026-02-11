@@ -1,12 +1,19 @@
 [package]
 name = "nyat-core"
-version = "0.1.0"
-edition = { workspace = true }
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "NAT traversal library — discover and maintain public addresses via STUN."
+readme = "README.md"
+license-file = "../LICENSE"
 
 [dependencies]
 smallvec = { workspace = true }
 socket2 = { workspace = true }
 stun = { workspace = true }
-thiserror = "2.0.18"
-tokio = { workspace = true }
-url.workspace = true
+thiserror ={ workspace = true}
+tokio = { workspace = true, features = ["macros", "net", "time"] }
