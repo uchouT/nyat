@@ -1,4 +1,4 @@
-//! NAT traversal library — a Rust reimplementation of [natmap](https://github.com/heiher/natmap).
+//! NAT traversal library.
 //!
 //! Discovers and maintains public socket addresses via STUN, keeping NAT
 //! mappings alive over TCP or UDP.
@@ -27,7 +27,9 @@
 //! # }
 //! ```
 
-pub mod error;
+mod error;
 pub mod mapper;
 pub mod net;
 mod stun;
+
+pub use error::Error;

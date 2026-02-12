@@ -201,7 +201,7 @@ pub(crate) async fn resolve_dns<T: tokio::net::ToSocketAddrs>(
     } else {
         addrs.next()
     }
-    .ok_or(DnsError::NotFound)
+    .ok_or(DnsError::AddrNotFound)
 }
 
 /// create tcp stream
