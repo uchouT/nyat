@@ -1,6 +1,6 @@
 # nyat
 
-NAT traversal toolkit — a Rust reimplementation of [natmap](https://github.com/heiher/natmap).
+NAT traversal toolkit — a Rust reimplementation of [natmap](https://github.com/heiher/natmap) / [natter](https://github.com/MikeWang000000/Natter).
 
 Discovers and maintains public socket addresses via STUN, keeping NAT mappings alive over TCP or UDP.
 
