@@ -2,7 +2,9 @@
 
 use std::net::SocketAddr;
 
+#[cfg(target_os = "linux")]
 use smallvec::SmallVec;
+
 use socket2::{Domain, Socket, Type};
 use tokio::net::{TcpStream, UdpSocket};
 
@@ -17,7 +19,9 @@ use crate::error::DnsError;
 /// `with_fmark` and `with_iface` are Linux-only.
 pub struct LocalAddr {
     local_addr: SocketAddr,
+    #[cfg(target_os = "linux")]
     fmark: Option<u32>,
+    #[cfg(target_os = "linux")]
     iface: Option<SmallVec<[u8; 16]>>,
 }
 
@@ -26,18 +30,22 @@ impl LocalAddr {
     pub fn new(local_addr: SocketAddr) -> Self {
         Self {
             local_addr,
+            #[cfg(target_os = "linux")]
             fmark: None,
+            #[cfg(target_os = "linux")]
             iface: None,
         }
     }
 
     /// Set `SO_MARK` (Linux fwmark) for policy routing.
+    #[cfg(target_os = "linux")]
     pub fn with_fmark(mut self, fmark: u32) -> Self {
         self.fmark = Some(fmark);
         self
     }
 
     /// Bind to a specific network interface (e.g. `b"eth0"`).
+    #[cfg(target_os = "linux")]
     pub fn with_iface(mut self, iface: impl AsRef<[u8]>) -> Self {
         self.iface = Some(iface.as_ref().into());
         self
@@ -52,21 +60,33 @@ impl LocalAddr {
             {
                 use Protocol::*;
                 match p {
+                    #[cfg(target_os = "linux")]
                     Tcp => Type::STREAM.nonblocking(),
+                    #[cfg(not(target_os = "linux"))]
+                    Tcp => Type::STREAM,
+                    #[cfg(target_os = "linux")]
                     Udp => Type::DGRAM.nonblocking(),
+                    #[cfg(not(target_os = "linux"))]
+                    Udp => Type::DGRAM,
                 }
             },
             None,
         )?;
 
+        #[cfg(not(target_os = "linux"))]
+        socket.set_nonblocking(true)?;
+        #[cfg(unix)]
         socket.set_reuse_port(true)?;
         socket.set_reuse_address(true)?;
 
-        if let Some(fmark) = self.fmark {
-            socket.set_mark(fmark)?;
-        }
-        if let Some(iface) = &self.iface {
-            socket.bind_device(Some(iface))?;
+        #[cfg(target_os = "linux")]
+        {
+            if let Some(fmark) = self.fmark {
+                socket.set_mark(fmark)?;
+            }
+            if let Some(iface) = &self.iface {
+                socket.bind_device(Some(iface))?;
+            }
         }
         // TODO: getpid_fd force to set reuse port
         socket.bind(&self.local_addr.into())?;
@@ -191,8 +211,9 @@ pub(crate) async fn connect_remote(
 ) -> Result<TcpStream, std::io::Error> {
     match socket.connect(&remote_addr.into()) {
         Ok(_) => {}
-        // TODO: cross platform support, avoid magic number
-        Err(ref e) if e.raw_os_error() == Some(115) => {}
+        #[cfg(unix)]
+        Err(ref e) if e.raw_os_error() == Some(libc::EINPROGRESS) => {}
+        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
         Err(e) => return Err(e),
     };
 
