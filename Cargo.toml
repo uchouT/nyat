@@ -6,13 +6,19 @@ members = ["nyat-core"]
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+authors = ["uchouT <i@uchout.moe>"]
+repository = "https://github.com/uchouT/nyat"
+keywords = ["stun", "traversal", "tcp", "udp", "port-mapping", "nat1"]
+categories = ["network-programming"]
 
 [workspace.dependencies]
-tokio = "1.49.0"
-thiserror = "2.0.18"
+nyat-core = { path = "nyat-core", version = "0.1.0" }
 smallvec = "1.15.1"
 socket2 = { version = "0.6.2", features = ["all"] }
 stun = "0.17.0"
+thiserror = "2.0.18"
+tokio = "1"
+
 [profile.dev]
 opt-level = 0
 debug = true

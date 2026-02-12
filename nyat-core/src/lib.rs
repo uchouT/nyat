@@ -12,12 +12,12 @@
 //!
 //! # async fn example() -> Result<(), nyat_core::error::Error> {
 //! let local = LocalAddr::new("0.0.0.0:4070".parse().unwrap());
-//! let stun = RemoteAddr::from_host("stun.l.google.com", 3478, None);
-//! let remote = RemoteAddr::from_addr("1.2.3.4:80".parse().unwrap());
+//! let stun = RemoteAddr::from_host("turn.cloudflare.com", 3478, None);
+//! let keepalive_remote = RemoteAddr::from_host("example.com", 80, None);
 //!
 //! let mapper = MapperBuilder::new(local, stun)
+//!     .tcp_remote(keepalive_remote)
 //!     .interval(Duration::from_secs(10))
-//!     .tcp_remote(remote)
 //!     .build_tcp();
 //!
 //! mapper.run(&mut |addr| {

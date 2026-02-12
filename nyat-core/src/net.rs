@@ -191,7 +191,8 @@ pub(crate) async fn connect_remote(
 ) -> Result<TcpStream, std::io::Error> {
     match socket.connect(&remote_addr.into()) {
         Ok(_) => {}
-        Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+        // TODO: cross platform support, avoid magic number
+        Err(ref e) if e.raw_os_error() == Some(115) => {}
         Err(e) => return Err(e),
     };
 
