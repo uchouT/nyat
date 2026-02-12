@@ -350,6 +350,7 @@ dependencies = [
 name = "nyat-core"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "smallvec",
  "socket2",
  "stun",
