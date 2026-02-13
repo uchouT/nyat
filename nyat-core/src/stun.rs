@@ -1,56 +1,165 @@
-use crate::error::StunError;
-use smallvec::SmallVec;
-use std::net::SocketAddr;
-use stun::{
-    agent::TransactionId,
-    message::{BINDING_REQUEST, Getter, Message},
-    xoraddr::XorMappedAddress,
-};
+//! Minimal STUN client (RFC 5389).
+//!
+//! Only implements Binding Request and parsing of
+//! MAPPED-ADDRESS / XOR-MAPPED-ADDRESS from responses.
+
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpStream, ToSocketAddrs, UdpSocket},
+    time::timeout,
 };
 
-fn create_binding_req() -> (impl AsRef<[u8]>, TransactionId) {
-    let mut msg = Message::new();
-    let tx_id = TransactionId::new();
-    msg.build(&[Box::new(BINDING_REQUEST), Box::new(tx_id)])
-        .unwrap();
-    (msg.marshal_binary().unwrap(), msg.transaction_id)
-}
+use crate::error::StunError;
 
-fn parse_pub_socket_addr(data: &[u8], tx_id: TransactionId) -> Result<SocketAddr, StunError> {
-    let mut msg = Message::new();
-    msg.unmarshal_binary(data)?;
-    if msg.transaction_id != tx_id {
-        return Err(StunError::TransactionIdMismatch);
+const MAGIC_COOKIE: u32 = 0x2112_A442;
+const HEADER_SIZE: usize = 20;
+const MAX_BODY_SIZE: usize = 2048;
+
+const ATTR_MAPPED_ADDRESS: u16 = 0x0001;
+const ATTR_XOR_MAPPED_ADDRESS: u16 = 0x0020;
+const FAMILY_IPV4: u8 = 0x01;
+const FAMILY_IPV6: u8 = 0x02;
+
+fn random_tx_id() -> [u8; 12] {
+    use std::hash::{BuildHasher, Hasher};
+    let mut bytes = [0u8; 12];
+    for chunk in bytes.chunks_exact_mut(4) {
+        let hash = std::collections::hash_map::RandomState::new()
+            .build_hasher()
+            .finish();
+        chunk.copy_from_slice(&hash.to_ne_bytes()[..4]);
     }
-    let mut xor_addr = XorMappedAddress::default();
-    xor_addr.get_from(&msg)?;
-    Ok(SocketAddr::new(xor_addr.ip, xor_addr.port))
+    bytes
 }
 
-const BUF_SIZE: usize = 1024;
+fn build_request() -> ([u8; HEADER_SIZE], [u8; 12]) {
+    let tx_id = random_tx_id();
+    let mut buf = [0u8; HEADER_SIZE];
+    buf[0..2].copy_from_slice(&0x0001u16.to_be_bytes()); // Binding Request
+    // buf[2..4] = 0 — message length = 0 (no attributes)
+    buf[4..8].copy_from_slice(&MAGIC_COOKIE.to_be_bytes());
+    buf[8..20].copy_from_slice(&tx_id);
+    (buf, tx_id)
+}
 
-/// get public socket address from stun server tcp stream
+fn parse_response(data: &[u8], tx_id: &[u8; 12]) -> Result<SocketAddr, StunError> {
+    if data.len() < HEADER_SIZE {
+        return Err(StunError::StunMalformed);
+    }
+    if data[8..20] != *tx_id {
+        return Err(StunError::StunTransactionIdMismatch);
+    }
+
+    let body_len = u16::from_be_bytes([data[2], data[3]]) as usize;
+    let body = data
+        .get(HEADER_SIZE..HEADER_SIZE + body_len)
+        .ok_or(StunError::StunMalformed)?;
+
+    let mut offset = 0;
+    while offset + 4 <= body.len() {
+        let attr_type = u16::from_be_bytes([body[offset], body[offset + 1]]);
+        let attr_len = u16::from_be_bytes([body[offset + 2], body[offset + 3]]) as usize;
+        let value = body
+            .get(offset + 4..offset + 4 + attr_len)
+            .ok_or(StunError::StunMalformed)?;
+
+        match attr_type {
+            ATTR_XOR_MAPPED_ADDRESS => return parse_xor_mapped(value, tx_id),
+            ATTR_MAPPED_ADDRESS => return parse_mapped(value),
+            _ => {}
+        }
+
+        // attributes padded to 4-byte boundary
+        offset += 4 + (attr_len + 3) & !3;
+    }
+
+    Err(StunError::StunMalformed)
+}
+
+fn parse_xor_mapped(value: &[u8], tx_id: &[u8; 12]) -> Result<SocketAddr, StunError> {
+    if value.len() < 8 {
+        return Err(StunError::StunMalformed);
+    }
+    let family = value[1];
+    let port = u16::from_be_bytes([value[2], value[3]]) ^ (MAGIC_COOKIE >> 16) as u16;
+
+    match family {
+        FAMILY_IPV4 => {
+            let mut b = [0u8; 4];
+            b.copy_from_slice(&value[4..8]);
+            let cookie = MAGIC_COOKIE.to_be_bytes();
+            for (a, m) in b.iter_mut().zip(&cookie) {
+                *a ^= m;
+            }
+            Ok(SocketAddr::new(IpAddr::V4(Ipv4Addr::from(b)), port))
+        }
+        FAMILY_IPV6 if value.len() >= 20 => {
+            let mut b = [0u8; 16];
+            b.copy_from_slice(&value[4..20]);
+            let mut key = [0u8; 16];
+            key[..4].copy_from_slice(&MAGIC_COOKIE.to_be_bytes());
+            key[4..].copy_from_slice(tx_id);
+            for (a, k) in b.iter_mut().zip(&key) {
+                *a ^= k;
+            }
+            Ok(SocketAddr::new(IpAddr::V6(Ipv6Addr::from(b)), port))
+        }
+        _ => Err(StunError::StunMalformed),
+    }
+}
+
+fn parse_mapped(value: &[u8]) -> Result<SocketAddr, StunError> {
+    if value.len() < 8 {
+        return Err(StunError::StunMalformed);
+    }
+    let family = value[1];
+    let port = u16::from_be_bytes([value[2], value[3]]);
+
+    match family {
+        FAMILY_IPV4 => Ok(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(value[4], value[5], value[6], value[7])),
+            port,
+        )),
+        FAMILY_IPV6 if value.len() >= 20 => {
+            let mut b = [0u8; 16];
+            b.copy_from_slice(&value[4..20]);
+            Ok(SocketAddr::new(IpAddr::V6(Ipv6Addr::from(b)), port))
+        }
+        _ => Err(StunError::StunMalformed),
+    }
+}
+
+/// Discover public address via STUN over an established TCP stream.
 pub(crate) async fn tcp_socket_addr(mut stream: TcpStream) -> Result<SocketAddr, StunError> {
-    let (msg, tx_id) = create_binding_req();
-    stream.write_all(msg.as_ref()).await?;
+    let (request, tx_id) = build_request();
 
-    let mut buf: SmallVec<[u8; BUF_SIZE]> = smallvec::SmallVec::new();
-    buf.resize(20, 0);
-    stream.read_exact(&mut buf).await?;
+    let buf = timeout(crate::TIMEOUT_DURATION, async {
+        stream.write_all(&request).await?;
 
-    let total_len = 20 + u16::from_be_bytes([buf[2], buf[3]]) as usize;
-    if buf.len() < total_len {
-        buf.resize(total_len, 0);
-    }
+        let mut header = [0u8; HEADER_SIZE];
+        stream.read_exact(&mut header).await?;
 
-    stream.read_exact(&mut buf[20..total_len]).await?;
-    parse_pub_socket_addr(&buf, tx_id)
+        let body_len = u16::from_be_bytes([header[2], header[3]]) as usize;
+        if body_len > MAX_BODY_SIZE {
+            return Err(StunError::StunResponseTooLarge);
+        }
+
+        let mut buf = vec![0u8; HEADER_SIZE + body_len];
+        buf[..HEADER_SIZE].copy_from_slice(&header);
+        if body_len > 0 {
+            stream.read_exact(&mut buf[HEADER_SIZE..]).await?;
+        }
+        Ok(buf)
+    })
+    .await
+    .map_err(std::io::Error::from)??;
+
+    parse_response(&buf, &tx_id)
 }
 
-/// Udp socket that has connected to a stun server
+/// Wrapper around a UDP socket that has been `connect()`ed to a STUN server.
 #[derive(Clone, Copy)]
 pub(crate) struct StunUdpSocket<'a> {
     pub inner: &'a UdpSocket,
@@ -58,34 +167,29 @@ pub(crate) struct StunUdpSocket<'a> {
 
 impl<'a> StunUdpSocket<'a> {
     pub(crate) async fn new<A: ToSocketAddrs>(
-        udpsocket: &'a UdpSocket,
+        socket: &'a UdpSocket,
         stun_addr: A,
     ) -> Result<Self, std::io::Error> {
-        udpsocket.connect(stun_addr).await?;
-        Ok(Self { inner: udpsocket })
+        socket.connect(stun_addr).await?;
+        Ok(Self { inner: socket })
     }
 }
 
-/// get public socket address from stun server udp socket
+/// Discover public address via STUN over a connected UDP socket.
 pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketAddr, StunError> {
-    // TODO: error handling
     let socket = socket.inner;
-    let (msg, tx_id) = create_binding_req();
-    let mut buf = [0u8; 1024];
-    socket.send(msg.as_ref()).await?;
-    let len = socket.recv(&mut buf).await?;
-    if len > 0 {
-        parse_pub_socket_addr(&buf[..len], tx_id)
-    } else {
-        todo!("retry")
+    let (request, tx_id) = build_request();
+    let mut buf = [0u8; HEADER_SIZE + MAX_BODY_SIZE];
+
+    socket.send(&request).await?;
+
+    let len = timeout(crate::TIMEOUT_DURATION, socket.recv(&mut buf))
+        .await
+        .map_err(std::io::Error::from)??;
+
+    if len < HEADER_SIZE {
+        return Err(StunError::StunMalformed);
     }
-}
 
-#[cfg(test)]
-mod test {
-
-    // #[tokio::test]
-    // async fn test_udp_stun() {
-    //     todo!()
-    // }
+    parse_response(&buf[..len], &tx_id)
 }

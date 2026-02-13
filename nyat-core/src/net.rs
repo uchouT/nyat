@@ -6,7 +6,10 @@ use std::net::SocketAddr;
 use smallvec::SmallVec;
 
 use socket2::{Domain, Socket, Type};
-use tokio::net::{TcpStream, UdpSocket};
+use tokio::{
+    net::{TcpStream, UdpSocket},
+    time::timeout,
+};
 
 use crate::error::DnsError;
 
@@ -119,11 +122,6 @@ enum RemoteAddrKind {
 }
 
 impl RemoteAddr {
-    #[inline]
-    pub(crate) const fn is_resolved(&self) -> bool {
-        matches!(self.kind, RemoteAddrKind::Resolved(_))
-    }
-
     /// Create from a resolved `SocketAddr` (no DNS needed).
     pub fn from_addr(addr: SocketAddr) -> Self {
         Self {
@@ -155,11 +153,10 @@ impl RemoteAddr {
         }
     }
 
-    #[inline]
-    pub(crate) const fn socket_addr_resolved(&self) -> SocketAddr {
-        match self.kind {
-            RemoteAddrKind::Resolved(socket_addr) => socket_addr,
-            _ => panic!("RemoteAddr is not resolved"),
+    pub(crate) fn host_str(&self) -> String {
+        match &self.kind {
+            RemoteAddrKind::Resolved(addr) => addr.ip().to_string(),
+            RemoteAddrKind::Host { domain, .. } => domain.clone(),
         }
     }
 }
@@ -191,7 +188,9 @@ pub(crate) async fn resolve_dns<T: tokio::net::ToSocketAddrs>(
     host: T,
     ver_preference: Option<IpVer>,
 ) -> Result<SocketAddr, DnsError> {
-    let mut addrs = tokio::net::lookup_host(host).await?;
+    let mut addrs = timeout(crate::TIMEOUT_DURATION, tokio::net::lookup_host(host))
+        .await
+        .map_err(std::io::Error::from)??;
 
     if let Some(ver) = ver_preference {
         addrs.find(|s| match ver {
@@ -218,7 +217,7 @@ pub(crate) async fn connect_remote(
     };
 
     let stream = TcpStream::from_std(socket.into())?;
-    stream.writable().await?;
+    timeout(crate::TIMEOUT_DURATION, stream.writable()).await??;
 
     if let Some(e) = stream.take_error()? {
         return Err(e);

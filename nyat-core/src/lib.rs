@@ -10,7 +10,7 @@
 //! use nyat_core::mapper::MapperBuilder;
 //! use std::time::Duration;
 //!
-//! # async fn example() -> Result<(), nyat_core::error::Error> {
+//! # async fn example() -> Result<(), nyat_core::Error> {
 //! let local = LocalAddr::new("0.0.0.0:4070".parse().unwrap());
 //! let stun = RemoteAddr::from_host("turn.cloudflare.com", 3478, None);
 //! let keepalive_remote = RemoteAddr::from_host("example.com", 80, None);
@@ -20,7 +20,7 @@
 //!     .interval(Duration::from_secs(10))
 //!     .build_tcp();
 //!
-//! mapper.run(&mut |addr| {
+//! mapper.run(|addr| {
 //!     println!("public address: {addr}");
 //! }).await?;
 //! # Ok(())
@@ -33,3 +33,6 @@ pub mod net;
 mod stun;
 
 pub use error::Error;
+
+const BUF_SIZE: usize = 1024;
+const TIMEOUT_DURATION: std::time::Duration = std::time::Duration::from_secs(30);

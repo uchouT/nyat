@@ -12,17 +12,21 @@ error_set::error_set! {
     }
 
     StunError := {
-        /// The STUN library returned a protocol-level error.
-        #[display("STUN protocol error")]
-        Protocol(stun::Error),
+        /// The STUN response could not be parsed (missing or invalid attributes).
+        #[display("malformed STUN response")]
+        StunMalformed,
+
+        /// The STUN response body exceeded the maximum allowed size.
+        #[display("STUN response too large")]
+        StunResponseTooLarge,
 
         /// Network I/O error during STUN operations.
         #[display("STUN network I/O error")]
-        Network(std::io::Error),
+        StunNetwork(std::io::Error),
 
         /// The STUN response transaction ID did not match the request.
         #[display("STUN transaction ID mismatch")]
-        TransactionIdMismatch,
+        StunTransactionIdMismatch,
     }
 
 /// Top-level error returned by mapper operations.
