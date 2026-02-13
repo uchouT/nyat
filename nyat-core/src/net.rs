@@ -165,6 +165,13 @@ impl RemoteAddr {
             _ => panic!("RemoteAddr is not resolved"),
         }
     }
+
+    pub(crate) fn host_str(&self) -> String {
+        match &self.kind {
+            RemoteAddrKind::Resolved(addr) => addr.ip().to_string(),
+            RemoteAddrKind::Host { domain, .. } => domain.clone(),
+        }
+    }
 }
 
 impl From<SocketAddr> for RemoteAddr {

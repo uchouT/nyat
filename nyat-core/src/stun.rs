@@ -42,6 +42,9 @@ pub(crate) async fn tcp_socket_addr(mut stream: TcpStream) -> Result<SocketAddr,
         stream.read_exact(&mut buf).await?;
 
         let total_len = 20 + u16::from_be_bytes([buf[2], buf[3]]) as usize;
+        if total_len > crate::BUF_SIZE {
+            return Err(StunError::StunResponseTooLarge);
+        }
         if buf.len() < total_len {
             buf.resize(total_len, 0);
         }
@@ -82,9 +85,6 @@ pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketA
         .await
         .map_err(std::io::Error::from)??;
 
-    if len > crate::BUF_SIZE {
-        return Err(StunError::StunResponseTooLarge);
-    }
     if len > 0 {
         parse_pub_socket_addr(&buf[..len], tx_id)
     } else {

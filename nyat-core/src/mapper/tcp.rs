@@ -38,7 +38,12 @@ impl TcpMapper {
                         current_ip = Some(pub_addr);
                         handler.on_change(pub_addr);
                     }
-                    let _ = keepalive(&mut stream, self.tick_interval).await;
+
+                    let request = format!(
+                        "HEAD / HTTP/1.1\r\nHost: {}\r\nConnection: keep-alive\r\n\r\n",
+                        self.remote.host_str()
+                    );
+                    let _ = keepalive(&mut stream, &request, self.tick_interval).await;
                 }
                 Err(e) if matches!(e, Error::Socket(_)) => return Err(e),
                 Err(e) => {
@@ -93,22 +98,26 @@ impl TcpMapper {
     }
 }
 
-/// send tick to keep the tcp connection alive
-async fn keepalive(stream: &mut TcpStream, interval: Duration) -> Result<(), std::io::Error> {
+/// Send periodic HTTP HEAD requests to keep the TCP connection alive.
+async fn keepalive(
+    stream: &mut TcpStream,
+    request: &str,
+    interval: Duration,
+) -> Result<(), std::io::Error> {
     let mut interval = tokio::time::interval(interval);
-    let mut buf = [0u8; crate::BUF_SIZE];
+    let mut buf = [0u8; 8192];
     loop {
         tokio::select! {
             _ = interval.tick() => {
-                stream.write_all(b"nya").await?;
+                stream.write_all(request.as_bytes()).await?;
             }
 
             res = stream.read(&mut buf) => match res {
                 // receive FIN
                 Ok(0) => return Ok(()),
-                // ignore
+                // ignore response body
                 Ok(_) => {}
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
     }
