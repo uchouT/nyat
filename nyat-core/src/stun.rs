@@ -24,7 +24,7 @@ fn parse_pub_socket_addr(data: &[u8], tx_id: TransactionId) -> Result<SocketAddr
     let mut msg = Message::new();
     msg.unmarshal_binary(data)?;
     if msg.transaction_id != tx_id {
-        return Err(StunError::TransactionIdMismatch);
+        return Err(StunError::StunTransactionIdMismatch);
     }
     let mut xor_addr = XorMappedAddress::default();
     xor_addr.get_from(&msg)?;
@@ -73,16 +73,25 @@ impl<'a> StunUdpSocket<'a> {
 
 /// get public socket address from stun server udp socket
 pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketAddr, StunError> {
-    // TODO: error handling
     let socket = socket.inner;
     let (msg, tx_id) = create_binding_req();
     let mut buf = [0u8; crate::BUF_SIZE];
     socket.send(msg.as_ref()).await?;
-    let len = socket.recv(&mut buf).await?;
+
+    let len = timeout(crate::TIMEOUT_DURATION, socket.recv(&mut buf))
+        .await
+        .map_err(std::io::Error::from)??;
+
+    if len > crate::BUF_SIZE {
+        return Err(StunError::StunResponseTooLarge);
+    }
     if len > 0 {
         parse_pub_socket_addr(&buf[..len], tx_id)
     } else {
-        todo!("retry")
+        Err(StunError::StunNetwork(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "empty STUN response",
+        )))
     }
 }
 

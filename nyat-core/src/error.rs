@@ -14,15 +14,19 @@ error_set::error_set! {
     StunError := {
         /// The STUN library returned a protocol-level error.
         #[display("STUN protocol error")]
-        Protocol(stun::Error),
+        StunProtocol(stun::Error),
+
+        /// The STUN response was larger than the buffer size.
+        #[display("STUN response too large")]
+        StunResponseTooLarge,
 
         /// Network I/O error during STUN operations.
         #[display("STUN network I/O error")]
-        Network(std::io::Error),
+        StunNetwork(std::io::Error),
 
         /// The STUN response transaction ID did not match the request.
         #[display("STUN transaction ID mismatch")]
-        TransactionIdMismatch,
+        StunTransactionIdMismatch,
     }
 
 /// Top-level error returned by mapper operations.
