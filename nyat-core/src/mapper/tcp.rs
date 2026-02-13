@@ -26,12 +26,12 @@ impl TcpMapper {
     /// Run the keepalive loop, calling `handler` whenever the public address changes.
     ///
     /// Returns only on unrecoverable error or after exhausting retries.
-    pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
+    pub async fn run<H: MappingHandler>(&self, mut handler: H) -> Result<(), Error> {
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 
         loop {
-            match self.stream_and_for_address().await {
+            match self.stream_and_addr().await {
                 Ok((mut stream, pub_addr)) => {
                     if Some(pub_addr) != current_ip {
                         current_ip = Some(pub_addr);
@@ -67,7 +67,7 @@ impl TcpMapper {
     }
 
     /// Create keepalive tcp stream and get public address via STUN
-    async fn stream_and_for_address(&self) -> Result<(TcpStream, SocketAddr), Error> {
+    async fn stream_and_addr(&self) -> Result<(TcpStream, SocketAddr), Error> {
         let socket_ka = self
             .local
             .socket(crate::net::Protocol::Tcp)
@@ -107,12 +107,10 @@ impl TcpMapper {
     }
 }
 
-const BUF_SIZE: usize = 1024;
-
 /// send tick to keep the tcp connection alive
 async fn keepalive(stream: &mut TcpStream, interval: Duration) -> Result<(), std::io::Error> {
     let mut interval = tokio::time::interval(interval);
-    let mut buf = [0u8; BUF_SIZE];
+    let mut buf = [0u8; crate::BUF_SIZE];
     stream.write_all(b"nya").await?;
     loop {
         tokio::select! {

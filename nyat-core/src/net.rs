@@ -6,7 +6,10 @@ use std::net::SocketAddr;
 use smallvec::SmallVec;
 
 use socket2::{Domain, Socket, Type};
-use tokio::net::{TcpStream, UdpSocket};
+use tokio::{
+    net::{TcpStream, UdpSocket},
+    time::timeout,
+};
 
 use crate::error::DnsError;
 
@@ -191,7 +194,9 @@ pub(crate) async fn resolve_dns<T: tokio::net::ToSocketAddrs>(
     host: T,
     ver_preference: Option<IpVer>,
 ) -> Result<SocketAddr, DnsError> {
-    let mut addrs = tokio::net::lookup_host(host).await?;
+    let mut addrs = timeout(crate::TIMEOUT_DURATION, tokio::net::lookup_host(host))
+        .await
+        .map_err(std::io::Error::from)??;
 
     if let Some(ver) = ver_preference {
         addrs.find(|s| match ver {
@@ -218,7 +223,7 @@ pub(crate) async fn connect_remote(
     };
 
     let stream = TcpStream::from_std(socket.into())?;
-    stream.writable().await?;
+    timeout(crate::TIMEOUT_DURATION, stream.writable()).await??;
 
     if let Some(e) = stream.take_error()? {
         return Err(e);

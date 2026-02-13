@@ -19,7 +19,7 @@ pub struct UdpMapper {
 
 impl UdpMapper {
     /// Run the keepalive loop, calling `handler` whenever the public address changes.
-    pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
+    pub async fn run<H: MappingHandler>(&self, mut handler: H) -> Result<(), Error> {
         let socket_st = self.local.udp_socket().map_err(Error::Socket)?;
         let socket_ka = self.local.udp_socket().map_err(Error::Socket)?;
         let mut current_ip = None;
@@ -36,8 +36,14 @@ impl UdpMapper {
                 .map_err(Error::Connection)?;
 
             // TODO: error handling, retry logic
-            self.keepalive(socket_st, &socket_ka, &stun_addr, &mut current_ip, handler)
-                .await;
+            self.keepalive(
+                socket_st,
+                &socket_ka,
+                &stun_addr,
+                &mut current_ip,
+                &mut handler,
+            )
+            .await;
         }
     }
 

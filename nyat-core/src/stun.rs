@@ -9,6 +9,7 @@ use stun::{
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpStream, ToSocketAddrs, UdpSocket},
+    time::timeout,
 };
 
 fn create_binding_req() -> (impl AsRef<[u8]>, TransactionId) {
@@ -30,23 +31,27 @@ fn parse_pub_socket_addr(data: &[u8], tx_id: TransactionId) -> Result<SocketAddr
     Ok(SocketAddr::new(xor_addr.ip, xor_addr.port))
 }
 
-const BUF_SIZE: usize = 1024;
-
 /// get public socket address from stun server tcp stream
 pub(crate) async fn tcp_socket_addr(mut stream: TcpStream) -> Result<SocketAddr, StunError> {
     let (msg, tx_id) = create_binding_req();
-    stream.write_all(msg.as_ref()).await?;
+    let buf = timeout(crate::TIMEOUT_DURATION, async {
+        stream.write_all(msg.as_ref()).await?;
 
-    let mut buf: SmallVec<[u8; BUF_SIZE]> = smallvec::SmallVec::new();
-    buf.resize(20, 0);
-    stream.read_exact(&mut buf).await?;
+        let mut buf: SmallVec<[u8; crate::BUF_SIZE]> = smallvec::SmallVec::new();
+        buf.resize(20, 0);
+        stream.read_exact(&mut buf).await?;
 
-    let total_len = 20 + u16::from_be_bytes([buf[2], buf[3]]) as usize;
-    if buf.len() < total_len {
-        buf.resize(total_len, 0);
-    }
+        let total_len = 20 + u16::from_be_bytes([buf[2], buf[3]]) as usize;
+        if buf.len() < total_len {
+            buf.resize(total_len, 0);
+        }
 
-    stream.read_exact(&mut buf[20..total_len]).await?;
+        stream.read_exact(&mut buf[20..total_len]).await?;
+        Ok::<_, StunError>(buf)
+    })
+    .await
+    .map_err(std::io::Error::from)??;
+
     parse_pub_socket_addr(&buf, tx_id)
 }
 
@@ -71,7 +76,7 @@ pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketA
     // TODO: error handling
     let socket = socket.inner;
     let (msg, tx_id) = create_binding_req();
-    let mut buf = [0u8; 1024];
+    let mut buf = [0u8; crate::BUF_SIZE];
     socket.send(msg.as_ref()).await?;
     let len = socket.recv(&mut buf).await?;
     if len > 0 {
