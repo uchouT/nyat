@@ -33,34 +33,20 @@ impl TcpMapper {
         loop {
             match self.stream_and_addr().await {
                 Ok((mut stream, pub_addr)) => {
+                    retry_cnt = 0;
                     if Some(pub_addr) != current_ip {
                         current_ip = Some(pub_addr);
                         handler.on_change(pub_addr);
                     }
-                    if let Err(e) = keepalive(&mut stream, self.tick_interval).await {
-                        if {
-                            retry_cnt += 1;
-                            retry_cnt
-                        } >= TcpMapper::RETRY_LTD
-                        {
-                            break Err(Error::Keepalive(e));
-                        }
-                    } else {
-                        retry_cnt = 0;
+                    let _ = keepalive(&mut stream, self.tick_interval).await;
+                }
+                Err(e) if matches!(e, Error::Socket(_)) => return Err(e),
+                Err(e) => {
+                    retry_cnt += 1;
+                    if retry_cnt >= Self::RETRY_LTD {
+                        return Err(e);
                     }
                 }
-                Err(e) => match e {
-                    Error::Socket(_) => return Err(e),
-                    _ => {
-                        if {
-                            retry_cnt += 1;
-                            retry_cnt
-                        } >= TcpMapper::RETRY_LTD
-                        {
-                            return Err(e);
-                        }
-                    }
-                },
             }
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
@@ -111,7 +97,6 @@ impl TcpMapper {
 async fn keepalive(stream: &mut TcpStream, interval: Duration) -> Result<(), std::io::Error> {
     let mut interval = tokio::time::interval(interval);
     let mut buf = [0u8; crate::BUF_SIZE];
-    stream.write_all(b"nya").await?;
     loop {
         tokio::select! {
             _ = interval.tick() => {
