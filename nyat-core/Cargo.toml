@@ -14,8 +14,7 @@ readme = "README.md"
 error_set = { workspace = true }
 smallvec = { workspace = true }
 socket2 = { workspace = true }
-stun = { workspace = true }
-tokio = { workspace = true, features = ["macros", "net", "time"] }
+tokio = { workspace = true, features = ["macros", "net", "time", "io-util"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }

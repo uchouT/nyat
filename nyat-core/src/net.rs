@@ -122,11 +122,6 @@ enum RemoteAddrKind {
 }
 
 impl RemoteAddr {
-    #[inline]
-    pub(crate) const fn is_resolved(&self) -> bool {
-        matches!(self.kind, RemoteAddrKind::Resolved(_))
-    }
-
     /// Create from a resolved `SocketAddr` (no DNS needed).
     pub fn from_addr(addr: SocketAddr) -> Self {
         Self {
@@ -155,14 +150,6 @@ impl RemoteAddr {
                 ver_preference,
             } => resolve_dns((domain.as_ref(), *port), *ver_preference).await,
             Resolved(addr) => Ok(*addr),
-        }
-    }
-
-    #[inline]
-    pub(crate) const fn socket_addr_resolved(&self) -> SocketAddr {
-        match self.kind {
-            RemoteAddrKind::Resolved(socket_addr) => socket_addr,
-            _ => panic!("RemoteAddr is not resolved"),
         }
     }
 

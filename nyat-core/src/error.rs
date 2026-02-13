@@ -12,11 +12,11 @@ error_set::error_set! {
     }
 
     StunError := {
-        /// The STUN library returned a protocol-level error.
-        #[display("STUN protocol error")]
-        StunProtocol(stun::Error),
+        /// The STUN response could not be parsed (missing or invalid attributes).
+        #[display("malformed STUN response")]
+        StunMalformed,
 
-        /// The STUN response was larger than the buffer size.
+        /// The STUN response body exceeded the maximum allowed size.
         #[display("STUN response too large")]
         StunResponseTooLarge,
 

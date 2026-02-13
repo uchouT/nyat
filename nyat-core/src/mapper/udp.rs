@@ -28,11 +28,7 @@ impl UdpMapper {
         let mut retry_cnt = 0usize;
 
         loop {
-            let stun_addr = if self.stun.is_resolved() {
-                self.stun.socket_addr_resolved()
-            } else {
-                self.stun.socket_addr().await?
-            };
+            let stun_addr = self.stun.socket_addr().await?;
 
             let socket_st = StunUdpSocket::new(&socket_st, stun_addr)
                 .await
