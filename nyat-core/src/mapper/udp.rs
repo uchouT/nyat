@@ -10,6 +10,7 @@ use crate::{
 };
 
 /// Sends UDP keepalive packets and periodically discovers the public address via STUN.
+#[derive(Debug)]
 pub struct UdpMapper {
     stun: RemoteAddr,
     local: LocalAddr,

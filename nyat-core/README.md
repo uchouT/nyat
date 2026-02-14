@@ -17,7 +17,7 @@ use nyat_core::mapper::MapperBuilder;
 use std::time::Duration;
 
 #[tokio::main]
-async fn main() -> Result<(), nyat_core::error::Error> {
+async fn main() -> Result<(), nyat_core::Error> {
     let local = LocalAddr::new("0.0.0.0:4070".parse().unwrap());
     let stun = RemoteAddr::from_host("turn.cloudflare.com", 3478, None);
     let remote = RemoteAddr::from_host("example.com", 80, None);
@@ -27,7 +27,7 @@ async fn main() -> Result<(), nyat_core::error::Error> {
         .interval(Duration::from_secs(10))
         .build_tcp();
 
-    mapper.run(&mut |addr| {
+    mapper.run(|addr| {
         println!("public address: {addr}");
     }).await
 }

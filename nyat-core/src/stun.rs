@@ -46,16 +46,16 @@ fn build_request() -> ([u8; HEADER_SIZE], [u8; 12]) {
 
 fn parse_response(data: &[u8], tx_id: &[u8; 12]) -> Result<SocketAddr, StunError> {
     if data.len() < HEADER_SIZE {
-        return Err(StunError::StunMalformed);
+        return Err(StunError::Malformed);
     }
     if data[8..20] != *tx_id {
-        return Err(StunError::StunTransactionIdMismatch);
+        return Err(StunError::TransactionIdMismatch);
     }
 
     let body_len = u16::from_be_bytes([data[2], data[3]]) as usize;
     let body = data
         .get(HEADER_SIZE..HEADER_SIZE + body_len)
-        .ok_or(StunError::StunMalformed)?;
+        .ok_or(StunError::Malformed)?;
 
     let mut offset = 0;
     while offset + 4 <= body.len() {
@@ -63,7 +63,7 @@ fn parse_response(data: &[u8], tx_id: &[u8; 12]) -> Result<SocketAddr, StunError
         let attr_len = u16::from_be_bytes([body[offset + 2], body[offset + 3]]) as usize;
         let value = body
             .get(offset + 4..offset + 4 + attr_len)
-            .ok_or(StunError::StunMalformed)?;
+            .ok_or(StunError::Malformed)?;
 
         match attr_type {
             ATTR_XOR_MAPPED_ADDRESS => return parse_xor_mapped(value, tx_id),
@@ -75,12 +75,12 @@ fn parse_response(data: &[u8], tx_id: &[u8; 12]) -> Result<SocketAddr, StunError
         offset += 4 + (attr_len + 3) & !3;
     }
 
-    Err(StunError::StunMalformed)
+    Err(StunError::Malformed)
 }
 
 fn parse_xor_mapped(value: &[u8], tx_id: &[u8; 12]) -> Result<SocketAddr, StunError> {
     if value.len() < 8 {
-        return Err(StunError::StunMalformed);
+        return Err(StunError::Malformed);
     }
     let family = value[1];
     let port = u16::from_be_bytes([value[2], value[3]]) ^ (MAGIC_COOKIE >> 16) as u16;
@@ -106,13 +106,13 @@ fn parse_xor_mapped(value: &[u8], tx_id: &[u8; 12]) -> Result<SocketAddr, StunEr
             }
             Ok(SocketAddr::new(IpAddr::V6(Ipv6Addr::from(b)), port))
         }
-        _ => Err(StunError::StunMalformed),
+        _ => Err(StunError::Malformed),
     }
 }
 
 fn parse_mapped(value: &[u8]) -> Result<SocketAddr, StunError> {
     if value.len() < 8 {
-        return Err(StunError::StunMalformed);
+        return Err(StunError::Malformed);
     }
     let family = value[1];
     let port = u16::from_be_bytes([value[2], value[3]]);
@@ -127,7 +127,7 @@ fn parse_mapped(value: &[u8]) -> Result<SocketAddr, StunError> {
             b.copy_from_slice(&value[4..20]);
             Ok(SocketAddr::new(IpAddr::V6(Ipv6Addr::from(b)), port))
         }
-        _ => Err(StunError::StunMalformed),
+        _ => Err(StunError::Malformed),
     }
 }
 
@@ -143,7 +143,7 @@ pub(crate) async fn tcp_socket_addr(mut stream: TcpStream) -> Result<SocketAddr,
 
         let body_len = u16::from_be_bytes([header[2], header[3]]) as usize;
         if body_len > MAX_BODY_SIZE {
-            return Err(StunError::StunResponseTooLarge);
+            return Err(StunError::ResponseTooLarge);
         }
 
         let mut buf = vec![0u8; HEADER_SIZE + body_len];
@@ -188,7 +188,7 @@ pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketA
         .map_err(std::io::Error::from)??;
 
     if len < HEADER_SIZE {
-        return Err(StunError::StunMalformed);
+        return Err(StunError::Malformed);
     }
 
     parse_response(&buf[..len], &tx_id)
