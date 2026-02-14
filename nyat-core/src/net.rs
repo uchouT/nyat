@@ -1,11 +1,7 @@
 //! Network address types and low-level socket utilities.
 
-use std::net::SocketAddr;
-
-#[cfg(target_os = "linux")]
-use smallvec::SmallVec;
-
 use socket2::{Domain, Socket, Type};
+use std::net::SocketAddr;
 use tokio::{
     net::{TcpStream, UdpSocket},
     time::timeout,
@@ -20,12 +16,13 @@ use crate::error::DnsError;
 /// # Platform support
 ///
 /// `with_fmark` and `with_iface` are Linux-only.
+#[derive(Debug)]
 pub struct LocalAddr {
     local_addr: SocketAddr,
     #[cfg(target_os = "linux")]
     fmark: Option<u32>,
     #[cfg(target_os = "linux")]
-    iface: Option<SmallVec<[u8; 16]>>,
+    iface: Option<([u8; libc::IFNAMSIZ], u8)>,
 }
 
 impl LocalAddr {
@@ -48,9 +45,17 @@ impl LocalAddr {
     }
 
     /// Bind to a specific network interface (e.g. `b"eth0"`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `iface` is longer than 16 bytes (`IFNAMSIZ`).
     #[cfg(target_os = "linux")]
     pub fn with_iface(mut self, iface: impl AsRef<[u8]>) -> Self {
-        self.iface = Some(iface.as_ref().into());
+        let src = iface.as_ref();
+        assert!(src.len() <= libc::IFNAMSIZ, "interface name exceeds IFNAMSIZ (16)");
+        let mut buf = [0u8; 16];
+        buf[..src.len()].copy_from_slice(src);
+        self.iface = Some((buf, src.len() as u8));
         self
     }
 
@@ -65,10 +70,10 @@ impl LocalAddr {
                 match p {
                     #[cfg(target_os = "linux")]
                     Tcp => Type::STREAM.nonblocking(),
-                    #[cfg(not(target_os = "linux"))]
-                    Tcp => Type::STREAM,
                     #[cfg(target_os = "linux")]
                     Udp => Type::DGRAM.nonblocking(),
+                    #[cfg(not(target_os = "linux"))]
+                    Tcp => Type::STREAM,
                     #[cfg(not(target_os = "linux"))]
                     Udp => Type::DGRAM,
                 }
@@ -87,8 +92,8 @@ impl LocalAddr {
             if let Some(fmark) = self.fmark {
                 socket.set_mark(fmark)?;
             }
-            if let Some(iface) = &self.iface {
-                socket.bind_device(Some(iface))?;
+            if let Some((buf, len)) = &self.iface {
+                socket.bind_device(Some(&buf[..*len as usize]))?;
             }
         }
         // TODO: getpid_fd force to set reuse port
@@ -106,10 +111,12 @@ impl LocalAddr {
 ///
 /// Construct via [`RemoteAddr::from_addr`], [`RemoteAddr::from_host`],
 /// or `From<SocketAddr>`.
+#[derive(Debug)]
 pub struct RemoteAddr {
     kind: RemoteAddrKind,
 }
 
+#[derive(Debug)]
 enum RemoteAddrKind {
     /// bare socket address
     Resolved(SocketAddr),
@@ -170,7 +177,7 @@ impl From<SocketAddr> for RemoteAddr {
 }
 
 /// IP version preference for DNS resolution.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum IpVer {
     /// Prefer IPv6 addresses.
     V6,
@@ -219,9 +226,6 @@ pub(crate) async fn connect_remote(
     let stream = TcpStream::from_std(socket.into())?;
     timeout(crate::TIMEOUT_DURATION, stream.writable()).await??;
 
-    if let Some(e) = stream.take_error()? {
-        return Err(e);
-    }
-
+    stream.peer_addr()?; // check if connected
     Ok(stream)
 }

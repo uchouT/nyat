@@ -11,8 +11,7 @@ description = "NAT traversal library — discover and maintain public addresses 
 readme = "README.md"
 
 [dependencies]
-error_set = { workspace = true }
-smallvec = { workspace = true }
+thiserror = { workspace = true }
 socket2 = { workspace = true }
 tokio = { workspace = true, features = ["macros", "net", "time", "io-util"] }
 

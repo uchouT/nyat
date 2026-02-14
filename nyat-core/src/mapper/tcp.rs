@@ -14,6 +14,7 @@ use crate::{
 };
 
 /// Maintains a TCP connection and periodically discovers the public address via STUN.
+#[derive(Debug)]
 pub struct TcpMapper {
     remote: RemoteAddr,
     stun: RemoteAddr,
@@ -88,7 +89,7 @@ impl TcpMapper {
         )
     }
 
-    pub(super) fn new(builder: super::MapperBuilder<super::WithTcpRemote>) -> Self {
+    pub(super) fn new(builder: super::MapperBuilder<super::builder::WithTcpRemote>) -> Self {
         Self {
             remote: builder.state.0,
             stun: builder.stun,

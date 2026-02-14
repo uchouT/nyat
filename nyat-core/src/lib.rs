@@ -34,5 +34,4 @@ mod stun;
 
 pub use error::Error;
 
-const BUF_SIZE: usize = 1024;
 const TIMEOUT_DURATION: std::time::Duration = std::time::Duration::from_secs(30);
