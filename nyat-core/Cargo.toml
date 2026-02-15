@@ -17,3 +17,7 @@ tokio = { workspace = true, features = ["macros", "net", "time", "io-util"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
+
+[features]
+default = []
+reuse_port = []

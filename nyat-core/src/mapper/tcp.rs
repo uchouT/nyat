@@ -21,6 +21,9 @@ pub struct TcpMapper {
     local: LocalAddr,
     tick_interval: Duration,
     request: String,
+
+    #[cfg(feature = "reuse_port")]
+    reuse_port: bool,
 }
 
 impl TcpMapper {
@@ -59,11 +62,19 @@ impl TcpMapper {
     async fn stream_and_addr(&self) -> Result<(TcpStream, SocketAddr), Error> {
         let socket_ka = self
             .local
-            .socket(crate::net::Protocol::Tcp)
+            .socket(
+                crate::net::Protocol::Tcp,
+                #[cfg(feature = "reuse_port")]
+                self.reuse_port,
+            )
             .map_err(Error::Socket)?;
         let socket_st = self
             .local
-            .socket(crate::net::Protocol::Tcp)
+            .socket(
+                crate::net::Protocol::Tcp,
+                #[cfg(feature = "reuse_port")]
+                self.reuse_port,
+            )
             .map_err(Error::Socket)?;
 
         let (addr_ka, addr_st) = try_join!(self.remote.socket_addr(), self.stun.socket_addr())?;
@@ -89,9 +100,9 @@ impl TcpMapper {
     pub(super) fn new(builder: super::MapperBuilder<super::builder::WithTcpRemote>) -> Self {
         let remote = builder.state.0;
         let request = match &remote.kind {
-            crate::net::RemoteAddrKind::Host { domain, .. } => format!(
-                "HEAD / HTTP/1.1\r\nHost: {domain}\r\nConnection: keep-alive\r\n\r\n"
-            ),
+            crate::net::RemoteAddrKind::Host { domain, .. } => {
+                format!("HEAD / HTTP/1.1\r\nHost: {domain}\r\nConnection: keep-alive\r\n\r\n")
+            }
             crate::net::RemoteAddrKind::Resolved(addr) => format!(
                 "HEAD / HTTP/1.1\r\nHost: {}\r\nConnection: keep-alive\r\n\r\n",
                 addr.ip()
@@ -101,8 +112,10 @@ impl TcpMapper {
             remote,
             stun: builder.stun,
             local: builder.local,
-            tick_interval: builder.interval.unwrap_or(Duration::from_secs(30)),
+            tick_interval: builder.interval,
             request,
+            #[cfg(feature = "reuse_port")]
+            reuse_port: builder.reuse_port,
         }
     }
 }
