@@ -22,8 +22,6 @@ pub struct MapperBuilder<S> {
     pub(super) interval: Duration,
     pub(super) check_per_tick: NonZeroUsize,
     pub(super) state: S,
-    #[cfg(feature = "reuse_port")]
-    pub(super) reuse_port: bool,
 }
 
 impl MapperBuilder<MissingTcpRemote> {
@@ -36,8 +34,6 @@ impl MapperBuilder<MissingTcpRemote> {
             interval: Duration::from_secs(30),
             check_per_tick: NonZeroUsize::new(5).unwrap(),
             state: MissingTcpRemote,
-            #[cfg(feature = "reuse_port")]
-            reuse_port: false,
         }
     }
 }
@@ -52,8 +48,6 @@ impl<S> MapperBuilder<S> {
             interval: self.interval,
             check_per_tick: self.check_per_tick,
             state: WithTcpRemote(ka_remote),
-            #[cfg(feature = "reuse_port")]
-            reuse_port: self.reuse_port,
         }
     }
 
@@ -68,13 +62,6 @@ impl<S> MapperBuilder<S> {
     #[must_use]
     pub const fn check_per_tick(mut self, check_per_tick: NonZeroUsize) -> Self {
         self.check_per_tick = check_per_tick;
-        self
-    }
-
-    #[cfg(feature = "reuse_port")]
-    #[must_use]
-    pub const fn reuse_port(mut self, reuse_port: bool) -> Self {
-        self.reuse_port = reuse_port;
         self
     }
 
