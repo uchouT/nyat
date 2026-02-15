@@ -38,6 +38,7 @@ pub(crate) enum StunError {
 ///
 /// Each variant represents a semantically distinct failure that callers
 /// can match on to decide whether to retry or abort.
+#[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The STUN response could not be parsed.

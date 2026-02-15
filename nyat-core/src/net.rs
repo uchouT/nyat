@@ -9,6 +9,8 @@ use tokio::{
 
 use crate::error::DnsError;
 
+const TIMEOUT_DURATION: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Local bind configuration: address, optional fwmark, and interface binding.
 ///
 /// Sockets created from this config have `SO_REUSEPORT` and `SO_REUSEADDR` set.
@@ -27,7 +29,7 @@ pub struct LocalAddr {
 
 impl LocalAddr {
     /// Create a new local bind config for the given address.
-    pub fn new(local_addr: SocketAddr) -> Self {
+    pub const fn new(local_addr: SocketAddr) -> Self {
         Self {
             local_addr,
             #[cfg(target_os = "linux")]
@@ -39,7 +41,7 @@ impl LocalAddr {
 
     /// Set `SO_MARK` (Linux fwmark) for policy routing.
     #[cfg(target_os = "linux")]
-    pub fn with_fmark(mut self, fmark: u32) -> Self {
+    pub const fn with_fmark(mut self, fmark: u32) -> Self {
         self.fmark = Some(fmark);
         self
     }
@@ -52,7 +54,10 @@ impl LocalAddr {
     #[cfg(target_os = "linux")]
     pub fn with_iface(mut self, iface: impl AsRef<[u8]>) -> Self {
         let src = iface.as_ref();
-        assert!(src.len() <= libc::IFNAMSIZ, "interface name exceeds IFNAMSIZ (16)");
+        assert!(
+            src.len() <= libc::IFNAMSIZ,
+            "interface name exceeds IFNAMSIZ (16)"
+        );
         let mut buf = [0u8; 16];
         buf[..src.len()].copy_from_slice(src);
         self.iface = Some((buf, src.len() as u8));
@@ -61,7 +66,6 @@ impl LocalAddr {
 
     /// Create non-blocking & reuse port & reuse address, with no-exec flag
     /// and bind the local address
-    /// TODO: cross platform support
     pub(crate) fn socket(&self, p: Protocol) -> Result<Socket, std::io::Error> {
         let socket = Socket::new(
             Domain::for_address(self.local_addr),
@@ -113,11 +117,11 @@ impl LocalAddr {
 /// or `From<SocketAddr>`.
 #[derive(Debug)]
 pub struct RemoteAddr {
-    kind: RemoteAddrKind,
+    pub(crate) kind: RemoteAddrKind,
 }
 
 #[derive(Debug)]
-enum RemoteAddrKind {
+pub(crate) enum RemoteAddrKind {
     /// bare socket address
     Resolved(SocketAddr),
     /// domain, requires DNS
@@ -130,7 +134,7 @@ enum RemoteAddrKind {
 
 impl RemoteAddr {
     /// Create from a resolved `SocketAddr` (no DNS needed).
-    pub fn from_addr(addr: SocketAddr) -> Self {
+    pub const fn from_addr(addr: SocketAddr) -> Self {
         Self {
             kind: RemoteAddrKind::Resolved(addr),
         }
@@ -157,13 +161,6 @@ impl RemoteAddr {
                 ver_preference,
             } => resolve_dns((domain.as_ref(), *port), *ver_preference).await,
             Resolved(addr) => Ok(*addr),
-        }
-    }
-
-    pub(crate) fn host_str(&self) -> String {
-        match &self.kind {
-            RemoteAddrKind::Resolved(addr) => addr.ip().to_string(),
-            RemoteAddrKind::Host { domain, .. } => domain.clone(),
         }
     }
 }
@@ -195,7 +192,7 @@ pub(crate) async fn resolve_dns<T: tokio::net::ToSocketAddrs>(
     host: T,
     ver_preference: Option<IpVer>,
 ) -> Result<SocketAddr, DnsError> {
-    let mut addrs = timeout(crate::TIMEOUT_DURATION, tokio::net::lookup_host(host))
+    let mut addrs = timeout(TIMEOUT_DURATION, tokio::net::lookup_host(host))
         .await
         .map_err(std::io::Error::from)??;
 
@@ -224,8 +221,11 @@ pub(crate) async fn connect_remote(
     };
 
     let stream = TcpStream::from_std(socket.into())?;
-    timeout(crate::TIMEOUT_DURATION, stream.writable()).await??;
+    timeout(TIMEOUT_DURATION, stream.writable()).await??;
 
-    stream.peer_addr()?; // check if connected
+    // Check if the connection succeeded or failed
+    if let Some(e) = stream.take_error()? {
+        return Err(e);
+    }
     Ok(stream)
 }

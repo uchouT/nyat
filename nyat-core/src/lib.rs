@@ -33,5 +33,3 @@ pub mod net;
 mod stun;
 
 pub use error::Error;
-
-const TIMEOUT_DURATION: std::time::Duration = std::time::Duration::from_secs(30);

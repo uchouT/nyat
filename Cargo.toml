@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["nyat","nyat-core"]
+members = ["nyat", "nyat-core"]
 
 [workspace.package]
 version = "0.1.0"
@@ -8,7 +8,7 @@ edition = "2024"
 license = "MIT"
 authors = ["uchouT <i@uchout.moe>"]
 repository = "https://github.com/uchouT/nyat"
-keywords = ["stun", "traversal", "tcp", "udp", "port-mapping", "nat1"]
+keywords = ["stun", "traversal", "port-mapping", "nat1"]
 categories = ["network-programming"]
 
 [workspace.dependencies]
