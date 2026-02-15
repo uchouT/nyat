@@ -16,6 +16,8 @@ pub struct UdpMapper {
     local: LocalAddr,
     interval: Duration,
     check_per_tick: NonZeroUsize,
+    #[cfg(feature = "reuse_port")]
+    reuse_port: bool,
 }
 
 impl UdpMapper {
@@ -23,8 +25,20 @@ impl UdpMapper {
 
     /// Run the keepalive loop, calling `handler` whenever the public address changes.
     pub async fn run<H: MappingHandler>(self, mut handler: H) -> Result<(), Error> {
-        let socket_st = self.local.udp_socket().map_err(Error::Socket)?;
-        let socket_ka = self.local.udp_socket().map_err(Error::Socket)?;
+        let socket_st = self
+            .local
+            .udp_socket(
+                #[cfg(feature = "reuse_port")]
+                self.reuse_port,
+            )
+            .map_err(Error::Socket)?;
+        let socket_ka = self
+            .local
+            .udp_socket(
+                #[cfg(feature = "reuse_port")]
+                self.reuse_port,
+            )
+            .map_err(Error::Socket)?;
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 
@@ -114,10 +128,10 @@ impl UdpMapper {
         Self {
             stun: builder.stun,
             local: builder.local,
-            interval: builder.interval.unwrap_or(Duration::from_secs(30)),
-            check_per_tick: builder
-                .check_per_tick
-                .unwrap_or(NonZeroUsize::new(5).unwrap()),
+            interval: builder.interval,
+            check_per_tick: builder.check_per_tick,
+            #[cfg(feature = "reuse_port")]
+            reuse_port: builder.reuse_port,
         }
     }
 }

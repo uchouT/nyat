@@ -66,7 +66,11 @@ impl LocalAddr {
 
     /// Create non-blocking & reuse port & reuse address, with no-exec flag
     /// and bind the local address
-    pub(crate) fn socket(&self, p: Protocol) -> Result<Socket, std::io::Error> {
+    pub(crate) fn socket(
+        &self,
+        p: Protocol,
+        #[cfg(feature = "reuse_port")] reuse_port: bool,
+    ) -> Result<Socket, std::io::Error> {
         let socket = Socket::new(
             Domain::for_address(self.local_addr),
             {
@@ -100,13 +104,32 @@ impl LocalAddr {
                 socket.bind_device(Some(&buf[..*len as usize]))?;
             }
         }
-        // TODO: getpid_fd force to set reuse port
-        socket.bind(&self.local_addr.into())?;
+
+        let socket_addr = &self.local_addr.into();
+
+        #[cfg(not(feature = "reuse_port"))]
+        socket.bind(socket_addr)?;
+
+        #[cfg(feature = "reuse_port")]
+        if let Err(e) = socket.bind(socket_addr) {
+            if e.kind() == std::io::ErrorKind::AddrInUse && reuse_port {
+                todo!("");
+                socket.bind(socket_addr)?;
+            }
+            return Err(e);
+        }
         Ok(socket)
     }
 
-    pub(crate) fn udp_socket(&self) -> std::io::Result<tokio::net::UdpSocket> {
-        let socket = self.socket(Protocol::Udp)?;
+    pub(crate) fn udp_socket(
+        &self,
+        #[cfg(feature = "reuse_port")] reuse_port: bool,
+    ) -> std::io::Result<tokio::net::UdpSocket> {
+        let socket = self.socket(
+            Protocol::Udp,
+            #[cfg(feature = "reuse_port")]
+            reuse_port,
+        )?;
         UdpSocket::from_std(socket.into())
     }
 }
