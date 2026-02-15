@@ -7,15 +7,13 @@ use nyat_core::{
 async fn main() -> Result<(), nyat_core::Error> {
     let local = LocalAddr::new("0.0.0.0:8080".parse().unwrap());
     let stun = RemoteAddr::from_host("turn.cloudflare.com", 3478, None);
-    let remote = RemoteAddr::from_host("bing.com", 80, None);
 
-    let mapper = MapperBuilder::new(local, stun)
-        .tcp_remote(remote)
+    let mapper = MapperBuilder::new_udp(local, stun)
         .check_per_tick(5.try_into().unwrap())
-        .build_tcp();
+        .build();
 
     mapper
-        .run(|pub_addr| {
+        .run(&mut |pub_addr| {
             println!("{pub_addr}");
         })
         .await?;

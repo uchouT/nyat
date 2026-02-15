@@ -22,12 +22,11 @@ async fn main() -> Result<(), nyat_core::Error> {
     let stun = RemoteAddr::from_host("turn.cloudflare.com", 3478, None);
     let remote = RemoteAddr::from_host("example.com", 80, None);
 
-    let mapper = MapperBuilder::new(local, stun)
-        .tcp_remote(remote)
+    let mapper = MapperBuilder::new_tcp(local, stun, remote)
         .interval(Duration::from_secs(10))
-        .build_tcp();
+        .build();
 
-    mapper.run(|addr| {
+    mapper.run(&mut |addr| {
         println!("public address: {addr}");
     }).await
 }

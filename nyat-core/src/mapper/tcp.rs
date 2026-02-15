@@ -28,7 +28,7 @@ impl TcpMapper {
     /// Run the keepalive loop, calling `handler` whenever the public address changes.
     ///
     /// Returns only on unrecoverable error or after exhausting retries.
-    pub async fn run<H: MappingHandler>(self, mut handler: H) -> Result<(), Error> {
+    pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 
@@ -86,8 +86,8 @@ impl TcpMapper {
         )
     }
 
-    pub(super) fn new(builder: super::MapperBuilder<super::builder::WithTcpRemote>) -> Self {
-        let remote = builder.state.0;
+    pub(super) fn new(builder: super::MapperBuilder<super::builder::TcpConfig>) -> Self {
+        let remote = builder.config.ka_remote;
         let request = match &remote.kind {
             crate::net::RemoteAddrKind::Host { domain, .. } => {
                 format!("HEAD / HTTP/1.1\r\nHost: {domain}\r\nConnection: keep-alive\r\n\r\n")
