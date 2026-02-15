@@ -74,7 +74,7 @@ fn parse_response(data: &[u8], tx_id: &[u8; 12]) -> Result<SocketAddr, StunError
         }
 
         // attributes padded to 4-byte boundary
-        offset += 4 + (attr_len + 3) & !3;
+        offset += 4 + ((attr_len + 3) & !3);
     }
 
     Err(StunError::Malformed)

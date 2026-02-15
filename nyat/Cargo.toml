@@ -9,5 +9,5 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-nyat-core = { workspace = true, features = ["reuse_port"] }
+nyat-core = { workspace = true, features = [] }
 tokio = { workspace = true, features = ["macros", "rt","rt-multi-thread"] }

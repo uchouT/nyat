@@ -1,8 +1,8 @@
 //! NAT mapping sessions.
 //!
-//! Use [`MapperBuilder`] to construct a [`TcpMapper`] or [`UdpMapper`],
-//! then call [`run`](TcpMapper::run) with a [`MappingHandler`] to start
-//! the keepalive loop.
+//! Use [`MapperBuilder::new_tcp`] or [`MapperBuilder::new_udp`] to create
+//! a builder, then call [`build`](MapperBuilder::build) and
+//! [`run`](TcpMapper::run) with a [`MappingHandler`].
 
 use std::net::SocketAddr;
 
