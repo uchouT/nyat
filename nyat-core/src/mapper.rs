@@ -7,11 +7,15 @@
 use std::net::SocketAddr;
 
 mod builder;
+#[cfg(feature = "tcp")]
 mod tcp;
+#[cfg(feature = "udp")]
 mod udp;
 
 pub use builder::MapperBuilder;
+#[cfg(feature = "tcp")]
 pub use tcp::TcpMapper;
+#[cfg(feature = "udp")]
 pub use udp::UdpMapper;
 /// Called when the discovered public address changes.
 ///

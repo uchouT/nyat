@@ -1,10 +1,14 @@
-use crate::{
-    mapper::{TcpMapper, UdpMapper},
-    net::{LocalAddr, RemoteAddr},
-};
-use std::{num::NonZeroUsize, time::Duration};
+use crate::net::{LocalAddr, RemoteAddr};
+#[cfg(feature = "tcp")]
+use crate::mapper::TcpMapper;
+#[cfg(feature = "udp")]
+use crate::mapper::UdpMapper;
+use std::time::Duration;
+#[cfg(feature = "udp")]
+use std::num::NonZeroUsize;
 
 #[doc(hidden)]
+#[cfg(feature = "udp")]
 #[derive(Debug)]
 pub struct UdpConfig {
     pub(super) check_per_tick: NonZeroUsize,
@@ -12,6 +16,7 @@ pub struct UdpConfig {
 
 #[doc(hidden)]
 #[derive(Debug)]
+#[cfg(feature = "tcp")]
 pub struct TcpConfig {
     pub(super) ka_remote: RemoteAddr,
 }
@@ -47,6 +52,7 @@ pub struct MapperBuilder<S> {
     pub(super) config: S,
 }
 
+#[cfg(feature = "udp")]
 impl MapperBuilder<UdpConfig> {
     /// Create a UDP mapper builder.
     ///
@@ -77,6 +83,7 @@ impl MapperBuilder<UdpConfig> {
     }
 }
 
+#[cfg(feature = "tcp")]
 impl MapperBuilder<TcpConfig> {
     /// Create a TCP mapper builder.
     ///

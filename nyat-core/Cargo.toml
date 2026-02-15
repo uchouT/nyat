@@ -1,6 +1,6 @@
 [package]
 name = "nyat-core"
-version.workspace = true
+version = "0.1.1"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -9,6 +9,10 @@ keywords.workspace = true
 categories.workspace = true
 description = "NAT traversal library — discover and maintain public addresses via STUN."
 readme = "README.md"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 thiserror = { workspace = true }
@@ -19,5 +23,7 @@ tokio = { workspace = true, features = ["macros", "net", "time", "io-util"] }
 libc = { workspace = true }
 
 [features]
-default = []
+default = ["tcp", "udp"]
 reuse_port = []
+udp = []
+tcp = []

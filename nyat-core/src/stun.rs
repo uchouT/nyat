@@ -5,11 +5,15 @@
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
+use tokio::time::timeout;
+
+#[cfg(feature = "tcp")]
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpStream, ToSocketAddrs, UdpSocket},
-    time::timeout,
+    net::TcpStream,
 };
+#[cfg(feature = "udp")]
+use tokio::net::{ToSocketAddrs, UdpSocket};
 
 use crate::error::StunError;
 
@@ -133,6 +137,7 @@ fn parse_mapped(value: &[u8]) -> Result<SocketAddr, StunError> {
     }
 }
 
+#[cfg(feature = "tcp")]
 /// Discover public address via STUN over an established TCP stream.
 pub(crate) async fn tcp_socket_addr(mut stream: TcpStream) -> Result<SocketAddr, StunError> {
     let (request, tx_id) = build_request();
@@ -163,10 +168,12 @@ pub(crate) async fn tcp_socket_addr(mut stream: TcpStream) -> Result<SocketAddr,
 
 /// Wrapper around a UDP socket that has been `connect()`ed to a STUN server.
 #[derive(Clone, Copy)]
+#[cfg(feature = "udp")]
 pub(crate) struct StunUdpSocket<'a> {
     pub inner: &'a UdpSocket,
 }
 
+#[cfg(feature = "udp")]
 impl<'a> StunUdpSocket<'a> {
     pub(crate) async fn new<A: ToSocketAddrs>(
         socket: &'a UdpSocket,
@@ -177,6 +184,7 @@ impl<'a> StunUdpSocket<'a> {
     }
 }
 
+#[cfg(feature = "udp")]
 /// Discover public address via STUN over a connected UDP socket.
 pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketAddr, StunError> {
     let socket = socket.inner;

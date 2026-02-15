@@ -4,10 +4,11 @@ mod reuse_port;
 
 use socket2::{Domain, Socket, Type};
 use std::net::SocketAddr;
-use tokio::{
-    net::{TcpStream, UdpSocket},
-    time::timeout,
-};
+use tokio::time::timeout;
+#[cfg(feature = "tcp")]
+use tokio::net::TcpStream;
+#[cfg(feature = "udp")]
+use tokio::net::UdpSocket;
 
 use crate::error::DnsError;
 
@@ -90,13 +91,13 @@ impl LocalAddr {
             {
                 use Protocol::*;
                 match p {
-                    #[cfg(target_os = "linux")]
+                    #[cfg(all(target_os = "linux", feature = "tcp"))]
                     Tcp => Type::STREAM.nonblocking(),
-                    #[cfg(target_os = "linux")]
+                    #[cfg(all(target_os = "linux", feature = "udp"))]
                     Udp => Type::DGRAM.nonblocking(),
-                    #[cfg(not(target_os = "linux"))]
+                    #[cfg(all(not(target_os = "linux"), feature = "tcp"))]
                     Tcp => Type::STREAM,
-                    #[cfg(not(target_os = "linux"))]
+                    #[cfg(all(not(target_os = "linux"), feature = "udp"))]
                     Udp => Type::DGRAM,
                 }
             },
@@ -136,6 +137,7 @@ impl LocalAddr {
         Ok(socket)
     }
 
+    #[cfg(feature = "udp")]
     pub(crate) fn udp_socket(&self) -> std::io::Result<tokio::net::UdpSocket> {
         let socket = self.socket(Protocol::Udp)?;
         UdpSocket::from_std(socket.into())
@@ -215,7 +217,9 @@ pub enum IpVer {
 
 #[derive(Clone, Copy)]
 pub(crate) enum Protocol {
+    #[cfg(feature = "tcp")]
     Tcp,
+    #[cfg(feature = "udp")]
     Udp,
 }
 
@@ -238,6 +242,7 @@ pub(crate) async fn resolve_dns<T: tokio::net::ToSocketAddrs>(
     .ok_or(DnsError::AddrNotFound)
 }
 
+#[cfg(feature = "tcp")]
 /// create tcp stream
 pub(crate) async fn connect_remote(
     socket: Socket,

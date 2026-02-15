@@ -26,6 +26,11 @@
 //! # }
 //! ```
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+#[cfg(not(any(feature = "tcp", feature = "udp")))]
+compile_error!("at least one of the `tcp` or `udp` features must be enabled");
+
 mod error;
 pub mod mapper;
 pub mod net;

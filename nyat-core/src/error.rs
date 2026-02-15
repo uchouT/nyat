@@ -22,6 +22,7 @@ pub(crate) enum StunError {
     Malformed,
 
     /// The STUN response body exceeded the maximum allowed size.
+    #[cfg(feature = "tcp")]
     #[error("STUN response too large")]
     ResponseTooLarge,
 
@@ -82,6 +83,7 @@ impl From<StunError> for Error {
     fn from(e: StunError) -> Self {
         match e {
             StunError::Malformed => Self::StunMalformed,
+            #[cfg(feature = "tcp")]
             StunError::ResponseTooLarge => Self::StunResponseTooLarge,
             StunError::Network(e) => Self::StunNetwork(e),
             StunError::TransactionIdMismatch => Self::StunTransactionIdMismatch,
