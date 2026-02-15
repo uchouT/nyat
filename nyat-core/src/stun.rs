@@ -13,6 +13,8 @@ use tokio::{
 
 use crate::error::StunError;
 
+const TIMEOUT_DURATION: std::time::Duration = std::time::Duration::from_secs(30);
+
 const MAGIC_COOKIE: u32 = 0x2112_A442;
 const HEADER_SIZE: usize = 20;
 const MAX_BODY_SIZE: usize = 2048;
@@ -135,7 +137,7 @@ fn parse_mapped(value: &[u8]) -> Result<SocketAddr, StunError> {
 pub(crate) async fn tcp_socket_addr(mut stream: TcpStream) -> Result<SocketAddr, StunError> {
     let (request, tx_id) = build_request();
 
-    let buf = timeout(crate::TIMEOUT_DURATION, async {
+    let buf = timeout(TIMEOUT_DURATION, async {
         stream.write_all(&request).await?;
 
         let mut header = [0u8; HEADER_SIZE];
@@ -183,7 +185,7 @@ pub(crate) async fn udp_socket_addr(socket: StunUdpSocket<'_>) -> Result<SocketA
 
     socket.send(&request).await?;
 
-    let len = timeout(crate::TIMEOUT_DURATION, socket.recv(&mut buf))
+    let len = timeout(TIMEOUT_DURATION, socket.recv(&mut buf))
         .await
         .map_err(std::io::Error::from)??;
 

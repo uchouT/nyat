@@ -20,6 +20,7 @@ pub struct TcpMapper {
     stun: RemoteAddr,
     local: LocalAddr,
     tick_interval: Duration,
+    request: String,
 }
 
 impl TcpMapper {
@@ -27,7 +28,7 @@ impl TcpMapper {
     /// Run the keepalive loop, calling `handler` whenever the public address changes.
     ///
     /// Returns only on unrecoverable error or after exhausting retries.
-    pub async fn run<H: MappingHandler>(&self, mut handler: H) -> Result<(), Error> {
+    pub async fn run<H: MappingHandler>(self, mut handler: H) -> Result<(), Error> {
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 
@@ -40,11 +41,7 @@ impl TcpMapper {
                         handler.on_change(pub_addr);
                     }
 
-                    let request = format!(
-                        "HEAD / HTTP/1.1\r\nHost: {}\r\nConnection: keep-alive\r\n\r\n",
-                        self.remote.host_str()
-                    );
-                    let _ = keepalive(&mut stream, &request, self.tick_interval).await;
+                    let _ = keepalive(&mut stream, &self.request, self.tick_interval).await;
                 }
                 Err(e) if matches!(e, Error::Socket(_)) => return Err(e),
                 Err(e) => {
@@ -90,11 +87,22 @@ impl TcpMapper {
     }
 
     pub(super) fn new(builder: super::MapperBuilder<super::builder::WithTcpRemote>) -> Self {
+        let remote = builder.state.0;
+        let request = match &remote.kind {
+            crate::net::RemoteAddrKind::Host { domain, .. } => format!(
+                "HEAD / HTTP/1.1\r\nHost: {domain}\r\nConnection: keep-alive\r\n\r\n"
+            ),
+            crate::net::RemoteAddrKind::Resolved(addr) => format!(
+                "HEAD / HTTP/1.1\r\nHost: {}\r\nConnection: keep-alive\r\n\r\n",
+                addr.ip()
+            ),
+        };
         Self {
-            remote: builder.state.0,
+            remote,
             stun: builder.stun,
             local: builder.local,
             tick_interval: builder.interval.unwrap_or(Duration::from_secs(30)),
+            request,
         }
     }
 }

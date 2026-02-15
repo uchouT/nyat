@@ -27,7 +27,7 @@ pub struct MapperBuilder<S> {
 impl MapperBuilder<MissingTcpRemote> {
     /// Create a builder with required local bind config and STUN server address.
     #[must_use]
-    pub fn new(local: LocalAddr, stun_addr: RemoteAddr) -> Self {
+    pub const fn new(local: LocalAddr, stun_addr: RemoteAddr) -> Self {
         Self {
             local,
             stun: stun_addr,
@@ -53,14 +53,14 @@ impl<S> MapperBuilder<S> {
 
     /// Set the keepalive / STUN probe interval. Defaults to 30 s.
     #[must_use]
-    pub fn interval(mut self, interval: Duration) -> Self {
+    pub const fn interval(mut self, interval: Duration) -> Self {
         self.interval = Some(interval);
         self
     }
 
     /// Set how many keepalive ticks between STUN probes (UDP only). Defaults to 5.
     #[must_use]
-    pub fn check_per_tick(mut self, check_per_tick: NonZeroUsize) -> Self {
+    pub const fn check_per_tick(mut self, check_per_tick: NonZeroUsize) -> Self {
         self.check_per_tick = Some(check_per_tick);
         self
     }
