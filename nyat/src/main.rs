@@ -12,7 +12,8 @@ async fn main() -> Result<(), nyat_core::Error> {
     let mapper = MapperBuilder::new(local, stun)
         .tcp_remote(remote)
         .check_per_tick(5.try_into().unwrap())
-        .build_udp();
+        .build_tcp();
+
     mapper
         .run(|pub_addr| {
             println!("{pub_addr}");

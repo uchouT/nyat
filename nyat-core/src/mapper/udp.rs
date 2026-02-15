@@ -16,8 +16,6 @@ pub struct UdpMapper {
     local: LocalAddr,
     interval: Duration,
     check_per_tick: NonZeroUsize,
-    #[cfg(feature = "reuse_port")]
-    reuse_port: bool,
 }
 
 impl UdpMapper {
@@ -27,17 +25,11 @@ impl UdpMapper {
     pub async fn run<H: MappingHandler>(self, mut handler: H) -> Result<(), Error> {
         let socket_st = self
             .local
-            .udp_socket(
-                #[cfg(feature = "reuse_port")]
-                self.reuse_port,
-            )
+            .udp_socket()
             .map_err(Error::Socket)?;
         let socket_ka = self
             .local
-            .udp_socket(
-                #[cfg(feature = "reuse_port")]
-                self.reuse_port,
-            )
+            .udp_socket()
             .map_err(Error::Socket)?;
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
@@ -130,8 +122,6 @@ impl UdpMapper {
             local: builder.local,
             interval: builder.interval,
             check_per_tick: builder.check_per_tick,
-            #[cfg(feature = "reuse_port")]
-            reuse_port: builder.reuse_port,
         }
     }
 }

@@ -1,4 +1,6 @@
 //! Network address types and low-level socket utilities.
+#[cfg(all(feature = "reuse_port", target_os = "linux"))]
+mod reuse_port;
 
 use socket2::{Domain, Socket, Type};
 use std::net::SocketAddr;
@@ -25,6 +27,8 @@ pub struct LocalAddr {
     fmark: Option<u32>,
     #[cfg(target_os = "linux")]
     iface: Option<([u8; libc::IFNAMSIZ], u8)>,
+    #[cfg(all(feature = "reuse_port", target_os = "linux"))]
+    reuse_port: bool,
 }
 
 impl LocalAddr {
@@ -36,6 +40,8 @@ impl LocalAddr {
             fmark: None,
             #[cfg(target_os = "linux")]
             iface: None,
+            #[cfg(all(feature = "reuse_port", target_os = "linux"))]
+            reuse_port: false,
         }
     }
 
@@ -64,13 +70,21 @@ impl LocalAddr {
         self
     }
 
+    /// Force `SO_REUSEPORT` on existing sockets if `bind` fails with `EADDRINUSE`.
+    ///
+    /// Uses `pidfd_open(2)` + `pidfd_getfd(2)` to duplicate each matching socket
+    /// from other processes and set `SO_REUSEPORT`. Requires `CAP_SYS_PTRACE`
+    /// (or root) and Linux ≥ 5.6.
+    #[cfg(all(feature = "reuse_port", target_os = "linux"))]
+    #[must_use]
+    pub const fn force_reuse_port(mut self) -> Self {
+        self.reuse_port = true;
+        self
+    }
+
     /// Create non-blocking & reuse port & reuse address, with no-exec flag
     /// and bind the local address
-    pub(crate) fn socket(
-        &self,
-        p: Protocol,
-        #[cfg(feature = "reuse_port")] reuse_port: bool,
-    ) -> Result<Socket, std::io::Error> {
+    pub(crate) fn socket(&self, p: Protocol) -> Result<Socket, std::io::Error> {
         let socket = Socket::new(
             Domain::for_address(self.local_addr),
             {
@@ -107,29 +121,23 @@ impl LocalAddr {
 
         let socket_addr = &self.local_addr.into();
 
-        #[cfg(not(feature = "reuse_port"))]
+        #[cfg(not(all(feature = "reuse_port", target_os = "linux")))]
         socket.bind(socket_addr)?;
 
-        #[cfg(feature = "reuse_port")]
+        #[cfg(all(feature = "reuse_port", target_os = "linux"))]
         if let Err(e) = socket.bind(socket_addr) {
-            if e.kind() == std::io::ErrorKind::AddrInUse && reuse_port {
-                todo!("");
+            if self.reuse_port && e.kind() == std::io::ErrorKind::AddrInUse {
+                reuse_port::force_reuse_port(self.local_addr.port())?;
                 socket.bind(socket_addr)?;
+            } else {
+                return Err(e);
             }
-            return Err(e);
         }
         Ok(socket)
     }
 
-    pub(crate) fn udp_socket(
-        &self,
-        #[cfg(feature = "reuse_port")] reuse_port: bool,
-    ) -> std::io::Result<tokio::net::UdpSocket> {
-        let socket = self.socket(
-            Protocol::Udp,
-            #[cfg(feature = "reuse_port")]
-            reuse_port,
-        )?;
+    pub(crate) fn udp_socket(&self) -> std::io::Result<tokio::net::UdpSocket> {
+        let socket = self.socket(Protocol::Udp)?;
         UdpSocket::from_std(socket.into())
     }
 }
