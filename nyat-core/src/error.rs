@@ -82,7 +82,10 @@ pub enum Error {
 impl Error {
     /// Whether this error is recoverable (worth retrying).
     pub fn is_recoverable(&self) -> bool {
-        !matches!(self, Self::Socket(_))
+        !matches!(
+            self,
+            Self::Socket(_) | Self::DnsResolve(_) | Self::AddrNotFound
+        )
     }
 }
 

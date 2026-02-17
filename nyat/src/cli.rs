@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::{net::SocketAddr, num::NonZeroUsize};
 
-use clap::{Args, CommandFactory, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use nyat_core::mapper::Mapper;
 use nyat_core::net::{IpVer, RemoteAddr};
 use nyat_core::{mapper::MapperBuilder, net::LocalAddr};
@@ -19,11 +19,19 @@ struct Cli {
 enum Command {
     /// Run a single mapping task
     Run {
+        /// Protocol mode
+        mode: Mode,
+
         #[command(flatten)]
         shared: SharedArgs,
 
-        #[command(subcommand)]
-        mode: Mode,
+        /// HTTP server for keepalive (TCP only, addr[:port], default port: 80)
+        #[arg(short, long)]
+        remote: Option<String>,
+
+        /// STUN check cycle: probe every N keepalive intervals (UDP only, default: 5)
+        #[arg(short, long)]
+        count: Option<NonZeroUsize>,
     },
     /// Run multiple mapping tasks from a config file
     Batch {
@@ -32,20 +40,12 @@ enum Command {
     },
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Clone, ValueEnum)]
 enum Mode {
     /// TCP mode (HTTP keepalive + STUN)
-    Tcp {
-        /// HTTP server for keepalive (addr[:port], default port: 80)
-        #[arg(short, long)]
-        remote: String,
-    },
+    Tcp,
     /// UDP mode (STUN binding)
-    Udp {
-        /// STUN check cycle: probe every N keepalive intervals (default: 5)
-        #[arg(short, long)]
-        count: Option<NonZeroUsize>,
-    },
+    Udp,
 }
 
 #[derive(Debug, Args)]
@@ -102,7 +102,7 @@ impl TryFrom<Cli> for Config {
     type Error = clap::Error;
     fn try_from(value: Cli) -> Result<Self, Self::Error> {
         match value.command {
-            Command::Run { shared, mode } => {
+            Command::Run { shared, mode, remote, count } => {
                 let local_socket = parse_bind(&shared.bind, shared.ipv6)?;
                 let mut local = LocalAddr::new(local_socket);
                 #[cfg(target_os = "linux")]
@@ -125,9 +125,21 @@ impl TryFrom<Cli> for Config {
                     parse_with_default_port(&shared.stun, STUN_PORT, shared.ipv4, shared.ipv6)?;
 
                 let mapper: Mapper = match mode {
-                    Mode::Tcp { remote } => {
+                    Mode::Tcp => {
+                        if count.is_some() {
+                            return Err(Cli::command().error(
+                                clap::error::ErrorKind::ArgumentConflict,
+                                "--count is only valid in UDP mode",
+                            ));
+                        }
+                        let remote_str = remote.ok_or_else(|| {
+                            Cli::command().error(
+                                clap::error::ErrorKind::MissingRequiredArgument,
+                                "TCP mode requires --remote (-r)",
+                            )
+                        })?;
                         let remote = parse_with_default_port(
-                            &remote,
+                            &remote_str,
                             REMOTE_PORT,
                             shared.ipv4,
                             shared.ipv6,
@@ -139,7 +151,13 @@ impl TryFrom<Cli> for Config {
                         };
                         builder.build().into()
                     }
-                    Mode::Udp { count } => {
+                    Mode::Udp => {
+                        if remote.is_some() {
+                            return Err(Cli::command().error(
+                                clap::error::ErrorKind::ArgumentConflict,
+                                "--remote is only valid in TCP mode",
+                            ));
+                        }
                         let mut builder = MapperBuilder::new_udp(local, stun);
                         if let Some(count) = count {
                             builder = builder.check_per_tick(count);

@@ -43,7 +43,7 @@ impl TcpMapper {
 
                     let _ = keepalive(&mut stream, &self.request, self.tick_interval).await;
                 }
-                Err(e) if matches!(e, Error::Socket(_)) => return Err(e),
+                Err(e) if !e.is_recoverable() => return Err(e),
                 Err(e) => {
                     retry_cnt += 1;
                     if retry_cnt >= Self::RETRY_LTD {

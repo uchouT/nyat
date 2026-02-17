@@ -1,7 +1,12 @@
 mod cli;
-use clap::Parser;
+mod single;
 
-fn main() -> Result<(), anyhow::Error> {
-    let config = cli::Config::parse();
+use cli::Config;
+
+fn main() -> anyhow::Result<()> {
+    match Config::parse() {
+        Config::Single(mapper) => single::proc(mapper)?,
+        Config::Multi(path) => todo!(),
+    }
     Ok(())
 }
