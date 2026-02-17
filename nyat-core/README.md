@@ -1,8 +1,10 @@
 # nyat-core
 
-NAT traversal library — a Rust reimplementation of [natmap](https://github.com/heiher/natmap).
+NAT traversal library — discover and maintain public addresses via STUN.
 
-Discovers and maintains public socket addresses via STUN, keeping NAT mappings alive over TCP or UDP.
+The library does one thing: it runs a loop that keeps a NAT mapping alive and
+calls you back when the public address changes. No policy, no I/O beyond the
+mapping itself. You decide what to do with the address.
 
 ## Usage
 
@@ -10,6 +12,8 @@ Discovers and maintains public socket addresses via STUN, keeping NAT mappings a
 [dependencies]
 nyat-core = "0.1"
 ```
+
+### TCP
 
 ```rust,no_run
 use nyat_core::net::{LocalAddr, RemoteAddr};
@@ -31,6 +35,50 @@ async fn main() -> Result<(), nyat_core::Error> {
     }).await
 }
 ```
+
+### UDP
+
+```rust,no_run
+use nyat_core::net::{LocalAddr, RemoteAddr};
+use nyat_core::mapper::MapperBuilder;
+use std::num::NonZeroUsize;
+
+#[tokio::main]
+async fn main() -> Result<(), nyat_core::Error> {
+    let local = LocalAddr::new("0.0.0.0:0".parse().unwrap());
+    let stun = RemoteAddr::from_host("stun.l.google.com", 19302, None);
+
+    let mapper = MapperBuilder::new_udp(local, stun)
+        .check_per_tick(NonZeroUsize::new(3).unwrap())
+        .build();
+
+    mapper.run(&mut |addr| {
+        println!("{} {}", addr.ip(), addr.port());
+    }).await
+}
+```
+
+## Feature flags
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `tcp` | yes | TCP keepalive + STUN mapping |
+| `udp` | yes | UDP STUN mapping |
+| `reuse_port` | no | **Dangerous.** Force `SO_REUSEPORT` on sockets owned by other processes via `pidfd_getfd(2)`. Linux 5.6+, requires root or `CAP_SYS_PTRACE`. Last resort only. |
+
+## Architecture
+
+```
+MapperBuilder::new_tcp / new_udp
+    → .interval()  .check_per_tick()
+    → .build()
+    → TcpMapper / UdpMapper
+        → .run(&mut handler)    // async loop
+            → MappingHandler::on_change(addr)
+```
+
+`MappingHandler` is auto-implemented for `FnMut(SocketAddr)`, so a closure
+works out of the box.
 
 ## License
 

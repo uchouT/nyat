@@ -1,14 +1,24 @@
 # nyat
 
-NAT traversal toolkit — a Rust reimplementation of [natmap](https://github.com/heiher/natmap) / [natter](https://github.com/MikeWang000000/Natter).
+> [!NOTE]
+> This project is under active development. Planned features:
+> - [ ] Batch mode — run multiple mapping tasks from a `.toml` config file
+> - [ ] Forward mode — relay traffic to a local target service
 
-Discovers and maintains public socket addresses via STUN, keeping NAT mappings alive over TCP or UDP.
+NAT traversal toolkit — discover and maintain your public address via STUN.
+
+A Rust reimplementation of [natmap](https://github.com/heiher/natmap) / [natter](https://github.com/MikeWang000000/Natter).
+
+When every NAT layer is full cone (NAT-1), external hosts can reach you — but
+only if you know the current mapping. nyat discovers that mapping and keeps it
+alive.
 
 ## Crates
 
 | Crate | Description |
 |-------|-------------|
-| [nyat-core](nyat-core/) | Library — builder API for NAT mapping sessions |
+| [**nyat**](nyat/) | CLI binary |
+| [**nyat-core**](nyat-core/) | Library — async builder API for NAT mapping sessions |
 
 ## Building
 
