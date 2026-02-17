@@ -79,6 +79,13 @@ pub enum Error {
     Keepalive(#[source] io::Error),
 }
 
+impl Error {
+    /// Whether this error is recoverable (worth retrying).
+    pub fn is_recoverable(&self) -> bool {
+        !matches!(self, Self::Socket(_))
+    }
+}
+
 impl From<StunError> for Error {
     fn from(e: StunError) -> Self {
         match e {
