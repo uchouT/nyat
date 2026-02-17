@@ -1,11 +1,11 @@
-use crate::net::{LocalAddr, RemoteAddr};
 #[cfg(feature = "tcp")]
 use crate::mapper::TcpMapper;
 #[cfg(feature = "udp")]
 use crate::mapper::UdpMapper;
-use std::time::Duration;
+use crate::net::{LocalAddr, RemoteAddr};
 #[cfg(feature = "udp")]
 use std::num::NonZeroUsize;
+use std::time::Duration;
 
 #[doc(hidden)]
 #[cfg(feature = "udp")]

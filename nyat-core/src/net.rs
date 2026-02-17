@@ -4,11 +4,11 @@ mod reuse_port;
 
 use socket2::{Domain, Socket, Type};
 use std::net::SocketAddr;
-use tokio::time::timeout;
 #[cfg(feature = "tcp")]
 use tokio::net::TcpStream;
 #[cfg(feature = "udp")]
 use tokio::net::UdpSocket;
+use tokio::time::timeout;
 
 use crate::error::DnsError;
 
@@ -148,12 +148,12 @@ impl LocalAddr {
 ///
 /// Construct via [`RemoteAddr::from_addr`], [`RemoteAddr::from_host`],
 /// or `From<SocketAddr>`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RemoteAddr {
     pub(crate) kind: RemoteAddrKind,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum RemoteAddrKind {
     /// bare socket address
     Resolved(SocketAddr),

@@ -17,6 +17,7 @@ pub use builder::MapperBuilder;
 pub use tcp::TcpMapper;
 #[cfg(feature = "udp")]
 pub use udp::UdpMapper;
+
 /// Called when the discovered public address changes.
 ///
 /// Automatically implemented for `FnMut(SocketAddr)` closures.
@@ -28,5 +29,34 @@ pub trait MappingHandler: Send {
 impl<F: FnMut(SocketAddr) + Send> MappingHandler for F {
     fn on_change(&mut self, new_addr: SocketAddr) {
         self(new_addr)
+    }
+}
+
+/// Mapper container
+#[cfg(all(feature = "tcp", feature = "udp"))]
+#[derive(Debug)]
+pub enum Mapper {
+    Tcp(TcpMapper),
+    Udp(UdpMapper),
+}
+
+impl From<TcpMapper> for Mapper {
+    fn from(m: TcpMapper) -> Self {
+        Self::Tcp(m)
+    }
+}
+
+impl From<UdpMapper> for Mapper {
+    fn from(m: UdpMapper) -> Self {
+        Self::Udp(m)
+    }
+}
+
+impl Mapper {
+    pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), crate::Error> {
+        match self {
+            Self::Tcp(mapper) => mapper.run(handler).await,
+            Self::Udp(mapper) => mapper.run(handler).await,
+        }
     }
 }
