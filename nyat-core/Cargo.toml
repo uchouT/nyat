@@ -1,23 +1,23 @@
 [package]
 name = "nyat-core"
-version = "0.1.1"
-edition.workspace = true
+version = "0.2.0"
 authors.workspace = true
-license.workspace = true
-repository.workspace = true
-keywords.workspace = true
-categories.workspace = true
+edition.workspace = true
 description = "NAT traversal library — discover and maintain public addresses via STUN."
 readme = "README.md"
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-thiserror = { workspace = true }
 socket2 = { workspace = true }
-tokio = { workspace = true, features = ["macros", "net", "time", "io-util"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "time"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
@@ -25,5 +25,5 @@ libc = { workspace = true }
 [features]
 default = ["tcp", "udp"]
 reuse_port = []
-udp = []
 tcp = []
+udp = []
