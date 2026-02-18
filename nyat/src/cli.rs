@@ -102,7 +102,12 @@ impl TryFrom<Cli> for Config {
     type Error = clap::Error;
     fn try_from(value: Cli) -> Result<Self, Self::Error> {
         match value.command {
-            Command::Run { shared, mode, remote, count } => {
+            Command::Run {
+                shared,
+                mode,
+                remote,
+                count,
+            } => {
                 let local_socket = parse_bind(&shared.bind, shared.ipv6)?;
                 let mut local = LocalAddr::new(local_socket);
                 #[cfg(target_os = "linux")]
@@ -206,9 +211,8 @@ fn parse_with_default_port(
     v6: bool,
 ) -> Result<RemoteAddr, clap::Error> {
     let ver = match (v4, v6) {
-        (true, _) => Some(IpVer::V4),
         (_, true) => Some(IpVer::V6),
-        _ => None,
+        _ => Some(IpVer::V4),
     };
 
     // ip:port or [::1]:port
