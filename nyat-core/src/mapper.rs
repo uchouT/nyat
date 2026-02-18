@@ -18,17 +18,33 @@ pub use tcp::TcpMapper;
 #[cfg(feature = "udp")]
 pub use udp::UdpMapper;
 
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy)]
+pub struct MappingInfo {
+    pub pub_addr: SocketAddr,
+    pub local_addr: SocketAddr,
+}
+
+impl MappingInfo {
+    pub(crate) const fn new(pub_addr: SocketAddr, local_addr: SocketAddr) -> Self {
+        Self {
+            pub_addr,
+            local_addr,
+        }
+    }
+}
+
 /// Called when the discovered public address changes.
 ///
 /// Automatically implemented for `FnMut(SocketAddr)` closures.
 pub trait MappingHandler: Send {
     /// Invoked once each time the public socket address changes.
-    fn on_change(&mut self, new_addr: SocketAddr);
+    fn on_change(&mut self, info: MappingInfo);
 }
 
-impl<F: FnMut(SocketAddr) + Send> MappingHandler for F {
-    fn on_change(&mut self, new_addr: SocketAddr) {
-        self(new_addr)
+impl<F: FnMut(MappingInfo) + Send> MappingHandler for F {
+    fn on_change(&mut self, info: MappingInfo) {
+        self(info)
     }
 }
 

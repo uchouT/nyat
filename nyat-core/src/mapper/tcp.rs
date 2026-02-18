@@ -33,16 +33,19 @@ impl TcpMapper {
         let mut retry_cnt = 0usize;
 
         loop {
-            match self.stream_and_addr().await {
-                Ok((mut stream, pub_addr)) => {
+            match TcpMapperReactor::new(&self.local, &self.remote, &self.stun).await {
+                Ok(mut actor) => {
                     retry_cnt = 0;
+                    let pub_addr = actor.pub_addr;
                     if Some(pub_addr) != current_ip {
                         current_ip = Some(pub_addr);
-                        handler.on_change(pub_addr);
+                        handler.on_change(super::MappingInfo::new(pub_addr, actor.local_addr));
                     }
 
-                    let _ = keepalive(&mut stream, &self.request, self.tick_interval).await;
+                    let _ =
+                        keepalive(&mut actor.tcp_stream, &self.request, self.tick_interval).await;
                 }
+
                 Err(e) if !e.is_recoverable() => return Err(e),
                 Err(e) => {
                     retry_cnt += 1;
@@ -53,42 +56,6 @@ impl TcpMapper {
             }
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
-    }
-
-    /// Create keepalive tcp stream and get public address via STUN
-    async fn stream_and_addr(&self) -> Result<(TcpStream, SocketAddr), Error> {
-        let socket_ka = self
-            .local
-            .socket(crate::net::Protocol::Tcp)
-            .map_err(Error::Socket)?;
-
-        let socket_st = self
-            .local
-            .socket_from_addr(
-                socket_ka
-                    .local_addr()
-                    .map_err(Error::Socket)?
-                    .as_socket()
-                    .unwrap(),
-                crate::net::Protocol::Tcp,
-            )
-            .map_err(Error::Socket)?;
-
-        let (addr_ka, addr_st) = try_join!(self.remote.socket_addr(), self.stun.socket_addr())?;
-
-        // tcp connect
-        let tcp_stream = connect_remote(socket_ka, addr_ka)
-            .await
-            .map_err(Error::Connection)?;
-
-        let stun_stream = connect_remote(socket_st, addr_st)
-            .await
-            .map_err(Error::Connection)?;
-        let addr = crate::stun::tcp_socket_addr(stun_stream)
-            .await
-            .map_err(Error::from)?;
-
-        Ok((tcp_stream, addr))
     }
 
     pub(super) fn new(builder: super::MapperBuilder<super::builder::TcpConfig>) -> Self {
@@ -134,5 +101,53 @@ async fn keepalive(
                 Err(e) => return Err(e),
             }
         }
+    }
+}
+
+struct TcpMapperReactor {
+    local_addr: SocketAddr,
+    tcp_stream: TcpStream,
+    pub_addr: SocketAddr,
+}
+
+impl TcpMapperReactor {
+    async fn new(
+        local: &LocalAddr,
+        ka_remote: &RemoteAddr,
+        stun: &RemoteAddr,
+    ) -> Result<Self, Error> {
+        let socket_ka = local
+            .socket(crate::net::Protocol::Tcp)
+            .map_err(Error::Socket)?;
+
+        let local_addr = socket_ka
+            .local_addr()
+            .map_err(Error::Socket)?
+            .as_socket()
+            .unwrap();
+
+        let socket_st = local
+            .socket_from_addr(local_addr, crate::net::Protocol::Tcp)
+            .map_err(Error::Socket)?;
+
+        let (addr_ka, addr_st) = try_join!(ka_remote.socket_addr(), stun.socket_addr())?;
+
+        // tcp connect
+        let tcp_stream = connect_remote(socket_ka, addr_ka)
+            .await
+            .map_err(Error::Connection)?;
+
+        let stun_stream = connect_remote(socket_st, addr_st)
+            .await
+            .map_err(Error::Connection)?;
+        let pub_addr = crate::stun::tcp_socket_addr(stun_stream)
+            .await
+            .map_err(Error::from)?;
+
+        Ok(Self {
+            tcp_stream,
+            local_addr,
+            pub_addr,
+        })
     }
 }

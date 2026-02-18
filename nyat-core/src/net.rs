@@ -141,14 +141,8 @@ impl LocalAddr {
 
     /// Create non-blocking & reuse port & reuse address, with no-exec flag
     /// and bind the local address
-    pub(crate) fn socket(&self, p: Protocol) -> Result<Socket, std::io::Error> {
+    pub(crate) fn socket(&self, p: Protocol) -> std::io::Result<Socket> {
         self.socket_from_addr(self.local_addr, p)
-    }
-
-    #[cfg(feature = "udp")]
-    pub(crate) fn udp_socket(&self) -> std::io::Result<tokio::net::UdpSocket> {
-        let socket = self.socket(Protocol::Udp)?;
-        UdpSocket::from_std(socket.into())
     }
 
     #[cfg(feature = "udp")]
@@ -157,8 +151,13 @@ impl LocalAddr {
         addr: SocketAddr,
     ) -> std::io::Result<tokio::net::UdpSocket> {
         let socket = self.socket_from_addr(addr, Protocol::Udp)?;
-        UdpSocket::from_std(socket.into())
+        udp_socket(socket)
     }
+}
+
+#[cfg(feature = "udp")]
+pub(crate) fn udp_socket(socket: Socket) -> std::io::Result<UdpSocket> {
+    UdpSocket::from_std(socket.into())
 }
 
 /// Remote endpoint address, either a resolved IP or a domain requiring DNS lookup.

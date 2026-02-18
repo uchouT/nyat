@@ -23,14 +23,27 @@ impl UdpMapper {
 
     /// Run the keepalive loop, calling `handler` whenever the public address changes.
     pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
-        let socket_st = self.local.udp_socket().map_err(Error::Socket)?;
+        let socket_st = self
+            .local
+            .socket(crate::net::Protocol::Udp)
+            .map_err(Error::Socket)?;
+
+        let local_addr = socket_st
+            .local_addr()
+            .map_err(Error::Socket)?
+            .as_socket()
+            .unwrap();
+
         let socket_ka = self
             .local
-            .udp_socket_from_addr(socket_st.local_addr().map_err(Error::Socket)?)
+            .udp_socket_from_addr(local_addr)
             .map_err(Error::Socket)?;
+
+        let socket_st = crate::net::udp_socket(socket_st).map_err(Error::Socket)?;
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 
+        // TODO: refactor stupid code
         loop {
             // Phase 1: DNS + connect + initial STUN probe (errors → retry_cnt)
             let setup = async {
@@ -48,12 +61,13 @@ impl UdpMapper {
                     retry_cnt = 0;
                     if Some(pub_addr) != current_ip {
                         current_ip = Some(pub_addr);
-                        handler.on_change(pub_addr);
+                        handler.on_change(super::MappingInfo::new(pub_addr, local_addr));
                     }
 
                     let _ = self
                         .keepalive(
                             StunUdpSocket { inner: &socket_st },
+                            local_addr,
                             &socket_ka,
                             &stun_addr,
                             &mut current_ip,
@@ -80,6 +94,7 @@ impl UdpMapper {
     async fn keepalive<H: MappingHandler>(
         &self,
         socket_st: StunUdpSocket<'_>,
+        local_addr: SocketAddr,
         socket_ka: &UdpSocket,
         stun_addr: &SocketAddr,
         current_ip: &mut Option<SocketAddr>,
@@ -95,7 +110,7 @@ impl UdpMapper {
                     consecutive_failures = 0;
                     if current_ip != &Some(pub_addr) {
                         *current_ip = Some(pub_addr);
-                        handler.on_change(pub_addr);
+                        handler.on_change(super::MappingInfo::new(pub_addr, local_addr));
                     }
                 } else {
                     consecutive_failures += 1;
