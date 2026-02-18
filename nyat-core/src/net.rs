@@ -83,11 +83,13 @@ impl LocalAddr {
         self
     }
 
-    /// Create non-blocking & reuse port & reuse address, with no-exec flag
-    /// and bind the local address
-    pub(crate) fn socket(&self, p: Protocol) -> Result<Socket, std::io::Error> {
+    pub(crate) fn socket_from_addr(
+        &self,
+        socket_addr: SocketAddr,
+        p: Protocol,
+    ) -> Result<Socket, std::io::Error> {
         let socket = Socket::new(
-            Domain::for_address(self.local_addr),
+            Domain::for_address(socket_addr),
             {
                 use Protocol::*;
                 match p {
@@ -120,16 +122,16 @@ impl LocalAddr {
             }
         }
 
-        let socket_addr = &self.local_addr.into();
+        let sock_addr = &socket_addr.into();
 
         #[cfg(not(all(feature = "reuse_port", target_os = "linux")))]
-        socket.bind(socket_addr)?;
+        socket.bind(sock_addr)?;
 
         #[cfg(all(feature = "reuse_port", target_os = "linux"))]
-        if let Err(e) = socket.bind(socket_addr) {
+        if let Err(e) = socket.bind(sock_addr) {
             if self.reuse_port && e.kind() == std::io::ErrorKind::AddrInUse {
-                reuse_port::force_reuse_port(self.local_addr.port())?;
-                socket.bind(socket_addr)?;
+                reuse_port::force_reuse_port(socket_addr.port())?;
+                socket.bind(sock_addr)?;
             } else {
                 return Err(e);
             }
@@ -137,9 +139,24 @@ impl LocalAddr {
         Ok(socket)
     }
 
+    /// Create non-blocking & reuse port & reuse address, with no-exec flag
+    /// and bind the local address
+    pub(crate) fn socket(&self, p: Protocol) -> Result<Socket, std::io::Error> {
+        self.socket_from_addr(self.local_addr, p)
+    }
+
     #[cfg(feature = "udp")]
     pub(crate) fn udp_socket(&self) -> std::io::Result<tokio::net::UdpSocket> {
         let socket = self.socket(Protocol::Udp)?;
+        UdpSocket::from_std(socket.into())
+    }
+
+    #[cfg(feature = "udp")]
+    pub(crate) fn udp_socket_from_addr(
+        &self,
+        addr: SocketAddr,
+    ) -> std::io::Result<tokio::net::UdpSocket> {
+        let socket = self.socket_from_addr(addr, Protocol::Udp)?;
         UdpSocket::from_std(socket.into())
     }
 }

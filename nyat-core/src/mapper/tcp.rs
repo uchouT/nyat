@@ -61,29 +61,34 @@ impl TcpMapper {
             .local
             .socket(crate::net::Protocol::Tcp)
             .map_err(Error::Socket)?;
+
         let socket_st = self
             .local
-            .socket(crate::net::Protocol::Tcp)
+            .socket_from_addr(
+                socket_ka
+                    .local_addr()
+                    .map_err(Error::Socket)?
+                    .as_socket()
+                    .unwrap(),
+                crate::net::Protocol::Tcp,
+            )
             .map_err(Error::Socket)?;
 
         let (addr_ka, addr_st) = try_join!(self.remote.socket_addr(), self.stun.socket_addr())?;
 
         // tcp connect
-        try_join!(
-            async {
-                connect_remote(socket_ka, addr_ka)
-                    .await
-                    .map_err(Error::Connection)
-            },
-            async {
-                let stun_stream = connect_remote(socket_st, addr_st)
-                    .await
-                    .map_err(Error::Connection)?;
-                crate::stun::tcp_socket_addr(stun_stream)
-                    .await
-                    .map_err(Error::from)
-            }
-        )
+        let tcp_stream = connect_remote(socket_ka, addr_ka)
+            .await
+            .map_err(Error::Connection)?;
+
+        let stun_stream = connect_remote(socket_st, addr_st)
+            .await
+            .map_err(Error::Connection)?;
+        let addr = crate::stun::tcp_socket_addr(stun_stream)
+            .await
+            .map_err(Error::from)?;
+
+        Ok((tcp_stream, addr))
     }
 
     pub(super) fn new(builder: super::MapperBuilder<super::builder::TcpConfig>) -> Self {

@@ -24,7 +24,10 @@ impl UdpMapper {
     /// Run the keepalive loop, calling `handler` whenever the public address changes.
     pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let socket_st = self.local.udp_socket().map_err(Error::Socket)?;
-        let socket_ka = self.local.udp_socket().map_err(Error::Socket)?;
+        let socket_ka = self
+            .local
+            .udp_socket_from_addr(socket_st.local_addr().map_err(Error::Socket)?)
+            .map_err(Error::Socket)?;
         let mut current_ip = None;
         let mut retry_cnt = 0usize;
 
