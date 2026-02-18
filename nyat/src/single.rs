@@ -5,8 +5,17 @@ use std::time::Duration;
 struct Handler;
 
 impl MappingHandler for Handler {
-    fn on_change(&mut self, addr: std::net::SocketAddr) {
-        if writeln!(std::io::stdout(), "{} {}", addr.ip(), addr.port()).is_err() {
+    fn on_change(&mut self, info: nyat_core::mapper::MappingInfo) {
+        if writeln!(
+            std::io::stdout(),
+            "{} {} {} {}",
+            info.pub_addr.ip(),
+            info.pub_addr.port(),
+            info.local_addr.ip(),
+            info.local_addr.port(),
+        )
+        .is_err()
+        {
             std::process::exit(0);
         }
     }

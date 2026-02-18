@@ -30,8 +30,8 @@ async fn main() -> Result<(), nyat_core::Error> {
         .interval(Duration::from_secs(10))
         .build();
 
-    mapper.run(&mut |addr| {
-        println!("public address: {addr}");
+    mapper.run(&mut |info: nyat_core::mapper::MappingInfo| {
+        println!("{} {}", info.pub_addr, info.local_addr);
     }).await
 }
 ```
@@ -52,8 +52,8 @@ async fn main() -> Result<(), nyat_core::Error> {
         .check_per_tick(NonZeroUsize::new(3).unwrap())
         .build();
 
-    mapper.run(&mut |addr| {
-        println!("{} {}", addr.ip(), addr.port());
+    mapper.run(&mut |info: nyat_core::mapper::MappingInfo| {
+        println!("{} {}", info.pub_addr, info.local_addr);
     }).await
 }
 ```
@@ -74,10 +74,10 @@ MapperBuilder::new_tcp / new_udp
     → .build()
     → TcpMapper / UdpMapper
         → .run(&mut handler)    // async loop
-            → MappingHandler::on_change(addr)
+            → MappingHandler::on_change(MappingInfo)
 ```
 
-`MappingHandler` is auto-implemented for `FnMut(SocketAddr)`, so a closure
+`MappingHandler` is auto-implemented for `FnMut(MappingInfo)`, so a closure
 works out of the box.
 
 ## License

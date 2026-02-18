@@ -19,8 +19,8 @@
 //!     .interval(Duration::from_secs(10))
 //!     .build();
 //!
-//! mapper.run(&mut |addr| {
-//!     println!("public address: {addr}");
+//! mapper.run(&mut |info: nyat_core::mapper::MappingInfo| {
+//!     println!("{} {}", info.pub_addr, info.local_addr);
 //! }).await?;
 //! # Ok(())
 //! # }

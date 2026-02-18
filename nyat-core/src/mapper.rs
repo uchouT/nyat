@@ -18,10 +18,13 @@ pub use tcp::TcpMapper;
 #[cfg(feature = "udp")]
 pub use udp::UdpMapper;
 
+/// Discovered NAT mapping, passed to [`MappingHandler::on_change`].
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub struct MappingInfo {
+    /// STUN-discovered public address.
     pub pub_addr: SocketAddr,
+    /// Actual local bound address (useful when binding to port 0).
     pub local_addr: SocketAddr,
 }
 
@@ -36,7 +39,7 @@ impl MappingInfo {
 
 /// Called when the discovered public address changes.
 ///
-/// Automatically implemented for `FnMut(SocketAddr)` closures.
+/// Automatically implemented for `FnMut(MappingInfo)` closures.
 pub trait MappingHandler: Send {
     /// Invoked once each time the public socket address changes.
     fn on_change(&mut self, info: MappingInfo);

@@ -5,7 +5,7 @@ NAT traversal CLI — discover and maintain your public address via STUN.
 In `run` mode, nyat outputs one line to stdout each time the mapping changes:
 
 ```
-<ip> <port>
+<pub_ip> <pub_port> <local_ip> <local_port>
 ```
 
 Machine-readable, pipe-friendly. Compose with the tools you already have.
@@ -110,9 +110,11 @@ nyat run udp -s stun.l.google.com -4 -c 3
 # Bind to interface (Linux)
 nyat run tcp -s stun.l.google.com -r example.com -i eth0
 
-# Pipe to a script — it receives $1=ip $2=port on each line
+# Pipe to a script — each line has: pub_ip pub_port local_ip local_port
 nyat run udp -s stun.l.google.com \
-  | while read ip port; do ./on-change.sh "$ip" "$port"; done
+  | while read pub_ip pub_port local_ip local_port; do
+      ./on-change.sh "$pub_ip" "$pub_port"
+    done
 ```
 
 ## License
