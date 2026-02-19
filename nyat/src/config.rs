@@ -31,43 +31,45 @@ pub struct RunConfig {
     pub force_reuse: bool,
 }
 
+impl RunConfig {
+    pub fn into_mapper(self) -> Mapper {
+        let mut local = LocalAddr::new(self.bind);
+        #[cfg(target_os = "linux")]
+        {
+            if let Some(fmark) = self.fwmark {
+                local = local.with_fmark(fmark);
+            }
+            if let Some(ref iface) = self.iface {
+                local = local.with_iface(iface.as_bytes());
+            }
+            if self.force_reuse {
+                local = local.force_reuse_port();
+            }
+        }
+
+        match self.mode {
+            RunMode::Tcp { remote } => {
+                let mut builder = MapperBuilder::new_tcp(local, self.stun, remote);
+                if let Some(keepalive) = self.keepalive {
+                    builder = builder.interval(keepalive);
+                }
+                builder.build().into()
+            }
+            RunMode::Udp { count } => {
+                let mut builder = MapperBuilder::new_udp(local, self.stun);
+                if let Some(count) = count {
+                    builder = builder.check_per_tick(count);
+                }
+                if let Some(keepalive) = self.keepalive {
+                    builder = builder.interval(keepalive);
+                }
+                builder.build().into()
+            }
+        }
+    }
+}
+
 pub enum RunMode {
     Tcp { remote: RemoteAddr },
     Udp { count: Option<NonZeroUsize> },
-}
-
-pub fn build_mapper(config: &RunConfig) -> Mapper {
-    let mut local = LocalAddr::new(config.bind);
-    #[cfg(target_os = "linux")]
-    {
-        if let Some(fmark) = config.fwmark {
-            local = local.with_fmark(fmark);
-        }
-        if let Some(ref iface) = config.iface {
-            local = local.with_iface(iface.as_bytes());
-        }
-        if config.force_reuse {
-            local = local.force_reuse_port();
-        }
-    }
-
-    match &config.mode {
-        RunMode::Tcp { remote } => {
-            let mut builder = MapperBuilder::new_tcp(local, config.stun.clone(), remote.clone());
-            if let Some(keepalive) = config.keepalive {
-                builder = builder.interval(keepalive);
-            }
-            builder.build().into()
-        }
-        RunMode::Udp { count } => {
-            let mut builder = MapperBuilder::new_udp(local, config.stun.clone());
-            if let Some(count) = count {
-                builder = builder.check_per_tick(*count);
-            }
-            if let Some(keepalive) = config.keepalive {
-                builder = builder.interval(keepalive);
-            }
-            builder.build().into()
-        }
-    }
 }

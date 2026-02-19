@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use nyat_core::mapper::{MappingHandler, MappingInfo};
 
-use crate::config::{build_mapper, RunConfig};
+use crate::config::RunConfig;
 
 struct Handler;
 
@@ -25,7 +25,7 @@ impl MappingHandler for Handler {
 }
 
 pub fn proc(config: RunConfig) -> anyhow::Result<()> {
-    let mapper = build_mapper(&config);
+    let mapper = config.into_mapper();
 
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
