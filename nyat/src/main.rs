@@ -1,5 +1,6 @@
 mod cli;
 mod config;
+mod multi;
 mod single;
 
 use cli::Config;
@@ -7,7 +8,7 @@ use cli::Config;
 fn main() -> anyhow::Result<()> {
     match Config::parse() {
         Config::Single(config) => single::proc(config)?,
-        Config::Multi(_path) => todo!(),
+        Config::Multi(path) => multi::proc(path)?,
     }
     Ok(())
 }

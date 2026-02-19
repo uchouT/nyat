@@ -1,1 +1,65 @@
-# nyat config example
+# nyat batch configuration
+#
+# Usage: nyat batch -c nyat.toml
+#
+# [default]   Global defaults inherited by all tasks.
+# [task.*]    Each task runs an independent mapping session.
+#             Task-level fields override defaults.
+
+log-level = "info"
+
+[default]
+# STUN server for NAT discovery (host and port must both be specified)
+stun-host = "turn.cloudflare.com"
+stun-port = 3478
+# HTTP keepalive server for TCP mode (host and port must both be specified)
+remote-host = "example.com"
+remote-port = 80
+# Seconds between keepalive probes (TCP default: 30, UDP default: 5)
+keepalive = 30
+# Prefer IPv6 for DNS resolution and bind address
+ipv6 = false
+# Linux only: bind to a specific network interface
+iface = "eth0"
+# Linux only: fwmark for policy routing
+fwmark = 100
+# Linux only: force SO_REUSEPORT on sockets held by other processes (requires root)
+force-reuse = false
+
+# ── Tasks ─────────────────────────────────────────────────────────────
+#
+# mode     "tcp" or "udp" (required)
+# bind     local address, PORT or ADDR:PORT (required)
+#
+# TCP-only:
+#   remote-host / remote-port   HTTP keepalive server (falls back to default)
+#
+# UDP-only:
+#   count   STUN re-check cycle: probe every N keepalive intervals
+
+# TCP task: inherits all defaults
+[task.web]
+mode = "tcp"
+bind = "0.0.0.0:4070"
+
+# TCP task: overrides remote server and keepalive
+[task.httpbin]
+mode = "tcp"
+bind = "0.0.0.0:4071"
+remote-host = "httpbin.org"
+remote-port = 80
+keepalive = 10
+
+# UDP task: overrides STUN server, sets check cycle
+[task.stun-google]
+mode = "udp"
+bind = "0.0.0.0:4072"
+stun-host = "stun.l.google.com"
+stun-port = 19302
+count = 3
+
+# UDP task: inherits default STUN, explicit IPv6
+[task.v6-probe]
+mode = "udp"
+bind = "[::]:4073"
+ipv6 = true

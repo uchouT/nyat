@@ -144,6 +144,14 @@ impl TryFrom<Cli> for Config {
                     }
                 };
 
+                #[cfg(target_os = "linux")]
+                if let Some(ref name) = shared.iface {
+                    crate::config::check_iface(name).map_err(|e| {
+                        Cli::command()
+                            .error(clap::error::ErrorKind::InvalidValue, e.to_string())
+                    })?;
+                }
+
                 Ok(Config::Single(RunConfig {
                     mode,
                     bind,

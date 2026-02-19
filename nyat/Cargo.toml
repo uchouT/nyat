@@ -1,9 +1,9 @@
 [package]
 name = "nyat"
-description = "NAT traversal port mapper"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+description = "NAT traversal port mapper"
 repository.workspace = true
 license.workspace = true
 keywords.workspace = true
@@ -13,4 +13,6 @@ categories.workspace = true
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 nyat-core = { workspace = true, features = ["reuse_port", "tcp", "udp"] }
+serde = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+toml = { workspace = true }

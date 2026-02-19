@@ -5,7 +5,18 @@ use std::time::Duration;
 use nyat_core::mapper::{Mapper, MapperBuilder};
 use nyat_core::net::{LocalAddr, RemoteAddr};
 
-/// Parsed run-mode configuration
+/// Validate that an interface name fits within `IFNAMSIZ` (16 bytes).
+#[cfg(target_os = "linux")]
+pub(crate) fn check_iface(name: &str) -> anyhow::Result<()> {
+    const IFNAMSIZ: usize = 16;
+    anyhow::ensure!(
+        name.len() <= IFNAMSIZ,
+        "interface name exceeds IFNAMSIZ ({IFNAMSIZ} bytes)"
+    );
+    Ok(())
+}
+
+/// Parsed run-mode configuration, TODO: ready for port range
 #[non_exhaustive]
 pub struct RunConfig {
     pub mode: RunMode,
@@ -42,8 +53,7 @@ pub fn build_mapper(config: &RunConfig) -> Mapper {
 
     match &config.mode {
         RunMode::Tcp { remote } => {
-            let mut builder =
-                MapperBuilder::new_tcp(local, config.stun.clone(), remote.clone());
+            let mut builder = MapperBuilder::new_tcp(local, config.stun.clone(), remote.clone());
             if let Some(keepalive) = config.keepalive {
                 builder = builder.interval(keepalive);
             }
