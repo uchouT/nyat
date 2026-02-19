@@ -1,12 +1,13 @@
 mod cli;
+mod config;
 mod single;
 
 use cli::Config;
 
 fn main() -> anyhow::Result<()> {
     match Config::parse() {
-        Config::Single(mapper) => single::proc(mapper)?,
-        Config::Multi(path) => todo!(),
+        Config::Single(config) => single::proc(config)?,
+        Config::Multi(_path) => todo!(),
     }
     Ok(())
 }

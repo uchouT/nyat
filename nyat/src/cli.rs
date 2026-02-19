@@ -1,12 +1,11 @@
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
-use std::time::Duration;
-use std::{net::SocketAddr, num::NonZeroUsize};
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
-use nyat_core::mapper::Mapper;
 use nyat_core::net::{IpVer, RemoteAddr};
-use nyat_core::{mapper::MapperBuilder, net::LocalAddr};
+
+use crate::config::{RunConfig, RunMode};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -87,7 +86,7 @@ struct SharedArgs {
 }
 
 pub enum Config {
-    Single(Mapper),
+    Single(RunConfig),
     Multi(PathBuf),
 }
 
@@ -108,28 +107,11 @@ impl TryFrom<Cli> for Config {
                 remote,
                 count,
             } => {
-                let local_socket = parse_bind(&shared.bind, shared.ipv6)?;
-                let mut local = LocalAddr::new(local_socket);
-                #[cfg(target_os = "linux")]
-                {
-                    if let Some(fmark) = shared.fwmark {
-                        local = local.with_fmark(fmark);
-                    }
-
-                    if let Some(iface) = shared.iface {
-                        local = local.with_iface(iface.as_bytes());
-                    }
-
-                    if shared.force_reuse {
-                        local = local.force_reuse_port();
-                    }
-                }
-
-                // stun server
+                let bind = parse_bind(&shared.bind, shared.ipv6)?;
                 let stun =
                     parse_with_default_port(&shared.stun, STUN_PORT, shared.ipv4, shared.ipv6)?;
 
-                let mapper: Mapper = match mode {
+                let mode = match mode {
                     Mode::Tcp => {
                         if count.is_some() {
                             return Err(Cli::command().error(
@@ -149,12 +131,7 @@ impl TryFrom<Cli> for Config {
                             shared.ipv4,
                             shared.ipv6,
                         )?;
-
-                        let mut builder = MapperBuilder::new_tcp(local, stun, remote);
-                        if let Some(keepalive) = shared.keepalive {
-                            builder = builder.interval(Duration::from_secs(keepalive));
-                        };
-                        builder.build().into()
+                        RunMode::Tcp { remote }
                     }
                     Mode::Udp => {
                         if remote.is_some() {
@@ -163,26 +140,29 @@ impl TryFrom<Cli> for Config {
                                 "--remote is only valid in TCP mode",
                             ));
                         }
-                        let mut builder = MapperBuilder::new_udp(local, stun);
-                        if let Some(count) = count {
-                            builder = builder.check_per_tick(count);
-                        }
-
-                        if let Some(keepalive) = shared.keepalive {
-                            builder = builder.interval(Duration::from_secs(keepalive));
-                        }
-
-                        builder.build().into()
+                        RunMode::Udp { count }
                     }
                 };
 
-                Ok(Self::Single(mapper))
+                Ok(Config::Single(RunConfig {
+                    mode,
+                    bind,
+                    stun,
+                    keepalive: shared.keepalive.map(std::time::Duration::from_secs),
+                    #[cfg(target_os = "linux")]
+                    iface: shared.iface,
+                    #[cfg(target_os = "linux")]
+                    fwmark: shared.fwmark,
+                    #[cfg(target_os = "linux")]
+                    force_reuse: shared.force_reuse,
+                }))
             }
 
-            Command::Batch { config } => Ok(Self::Multi(config)),
+            Command::Batch { config } => Ok(Config::Multi(config)),
         }
     }
 }
+
 fn parse_bind(s: &str, ipv6: bool) -> Result<SocketAddr, clap::Error> {
     if let Ok(port) = s.parse::<u16>() {
         let ip = if ipv6 {
