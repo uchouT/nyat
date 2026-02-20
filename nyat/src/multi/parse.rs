@@ -9,7 +9,7 @@ use anyhow::{Context, Result, bail};
 use nyat_core::net::{IpVer, RemoteAddr};
 use serde::Deserialize;
 
-use crate::config::{RunConfig, RunMode};
+use crate::config::{RunMode, TaskConfig};
 
 #[derive(Debug, Clone)]
 struct Server {
@@ -39,7 +39,6 @@ impl Server {
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct BatchFile {
-    log_level: Option<String>,
     #[serde(default)]
     default: Defaults,
     task: HashMap<String, TaskEntry>,
@@ -53,6 +52,7 @@ struct Defaults {
     remote_host: Option<String>,
     remote_port: Option<u16>,
     keepalive: Option<u64>,
+    exec: Option<String>,
     ipv6: Option<bool>,
     #[cfg(target_os = "linux")]
     iface: Option<String>,
@@ -80,6 +80,7 @@ impl Defaults {
             stun,
             remote,
             keepalive: self.keepalive,
+            exec: self.exec,
             ipv6: self.ipv6,
             #[cfg(target_os = "linux")]
             iface: self.iface,
@@ -95,6 +96,7 @@ struct ParsedDefaults {
     stun: Option<Server>,
     remote: Option<Server>,
     keepalive: Option<u64>,
+    exec: Option<String>,
     ipv6: Option<bool>,
     #[cfg(target_os = "linux")]
     iface: Option<String>,
@@ -121,6 +123,7 @@ struct TaskEntry {
     remote_host: Option<String>,
     remote_port: Option<u16>,
     keepalive: Option<u64>,
+    exec: Option<String>,
     count: Option<NonZeroUsize>,
     ipv6: Option<bool>,
     #[cfg(target_os = "linux")]
@@ -146,7 +149,7 @@ fn parse_bind(s: &str, ipv6: bool) -> Result<SocketAddr> {
 }
 
 impl TaskEntry {
-    fn into_config(self, name: &str, defaults: &ParsedDefaults) -> Result<RunConfig> {
+    fn into_config(self, name: &str, defaults: &ParsedDefaults) -> Result<TaskConfig> {
         let ctx = |msg: &str| format!("task '{name}': {msg}");
 
         let ipv6 = self.ipv6.or(defaults.ipv6).unwrap_or(false);
@@ -196,11 +199,14 @@ impl TaskEntry {
         #[cfg(target_os = "linux")]
         let iface = self.iface.or_else(|| defaults.iface.clone());
 
-        Ok(RunConfig {
+        let exec = self.exec.or_else(|| defaults.exec.clone());
+
+        Ok(TaskConfig {
             mode,
             bind,
             stun,
             keepalive,
+            exec,
             #[cfg(target_os = "linux")]
             iface,
             #[cfg(target_os = "linux")]
@@ -213,8 +219,7 @@ impl TaskEntry {
 
 #[non_exhaustive]
 pub struct MultiConfig {
-    pub log_level: Option<String>,
-    pub tasks: HashMap<String, RunConfig>,
+    pub tasks: HashMap<String, TaskConfig>,
 }
 
 impl MultiConfig {
@@ -241,9 +246,6 @@ impl MultiConfig {
             })
             .collect::<Result<HashMap<_, _>>>()?;
 
-        Ok(Self {
-            log_level: file.log_level,
-            tasks: configs,
-        })
+        Ok(Self { tasks: configs })
     }
 }

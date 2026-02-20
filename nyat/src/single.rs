@@ -3,12 +3,23 @@ use std::time::Duration;
 
 use nyat_core::mapper::{MappingHandler, MappingInfo};
 
-use crate::config::RunConfig;
+use crate::config::TaskConfig;
+use crate::hooks::Hooks;
 
-struct Handler;
+struct Handler {
+    hooks: Hooks,
+}
+
+impl Handler {
+    fn new(hooks: Hooks) -> Self {
+        Self { hooks }
+    }
+}
 
 impl MappingHandler for Handler {
     fn on_change(&mut self, info: MappingInfo) {
+        self.hooks.on_change(info);
+
         if writeln!(
             std::io::stdout(),
             "{} {} {} {}",
@@ -24,7 +35,8 @@ impl MappingHandler for Handler {
     }
 }
 
-pub fn proc(config: RunConfig) -> anyhow::Result<()> {
+pub fn proc(mut config: TaskConfig) -> anyhow::Result<()> {
+    let mut handler = Handler::new(Hooks::new(config.exec.take()));
     let mapper = config.into_mapper();
 
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -33,7 +45,7 @@ pub fn proc(config: RunConfig) -> anyhow::Result<()> {
 
     rt.block_on(async {
         loop {
-            match mapper.run(&mut Handler).await {
+            match mapper.run(&mut handler).await {
                 Ok(()) => {}
                 Err(e) if e.is_recoverable() => {
                     eprintln!("nyat: {:#}, retrying...", anyhow::Error::from(e));

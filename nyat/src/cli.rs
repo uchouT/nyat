@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use nyat_core::net::{IpVer, RemoteAddr};
 
-use crate::config::{RunConfig, RunMode};
+use crate::config::{TaskConfig, RunMode};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -61,6 +61,10 @@ struct SharedArgs {
     #[arg(short, long)]
     keepalive: Option<u64>,
 
+    /// Command to execute on mapping change
+    #[arg(short, long)]
+    exec: Option<String>,
+
     /// Prefer IPv4 for DNS resolution
     #[arg(short = '4', long, conflicts_with = "ipv6")]
     ipv4: bool,
@@ -86,7 +90,7 @@ struct SharedArgs {
 }
 
 pub enum Config {
-    Single(RunConfig),
+    Single(TaskConfig),
     Multi(PathBuf),
 }
 
@@ -152,11 +156,12 @@ impl TryFrom<Cli> for Config {
                     })?;
                 }
 
-                Ok(Config::Single(RunConfig {
+                Ok(Config::Single(TaskConfig {
                     mode,
                     bind,
                     stun,
                     keepalive: shared.keepalive.map(std::time::Duration::from_secs),
+                    exec: shared.exec,
                     #[cfg(target_os = "linux")]
                     iface: shared.iface,
                     #[cfg(target_os = "linux")]

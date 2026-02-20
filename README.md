@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > This project is under active development. Planned features:
-> - [ ] Batch mode — run multiple mapping tasks from a `.toml` config file
+> - [x] Batch mode — run multiple mapping tasks from a `.toml` config file
 > - [ ] Forward mode — relay traffic to a local target service
 
 NAT traversal toolkit — discover and maintain your public address via STUN.

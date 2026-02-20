@@ -1,5 +1,6 @@
 mod cli;
 mod config;
+mod hooks;
 mod multi;
 mod single;
 

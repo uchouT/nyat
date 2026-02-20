@@ -10,7 +10,7 @@ mapping itself. You decide what to do with the address.
 
 ```toml
 [dependencies]
-nyat-core = "0.1"
+nyat-core = "0.2"
 ```
 
 ### TCP

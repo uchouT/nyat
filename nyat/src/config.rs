@@ -16,13 +16,14 @@ pub(crate) fn check_iface(name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Parsed run-mode configuration, TODO: ready for port range
+/// Resolved configuration for a single mapping task.
 #[non_exhaustive]
-pub struct RunConfig {
+pub struct TaskConfig {
     pub mode: RunMode,
     pub bind: SocketAddr,
     pub stun: RemoteAddr,
     pub keepalive: Option<Duration>,
+    pub exec: Option<String>,
     #[cfg(target_os = "linux")]
     pub iface: Option<String>,
     #[cfg(target_os = "linux")]
@@ -31,7 +32,7 @@ pub struct RunConfig {
     pub force_reuse: bool,
 }
 
-impl RunConfig {
+impl TaskConfig {
     pub fn into_mapper(self) -> Mapper {
         let mut local = LocalAddr::new(self.bind);
         #[cfg(target_os = "linux")]
