@@ -139,4 +139,4 @@ nyat run udp -s stun.l.google.com \
 
 ## License
 
-MIT
+GPL-3.0-or-later

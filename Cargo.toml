@@ -7,7 +7,7 @@ version = "0.1.0"
 authors = ["uchouT <i@uchout.moe>"]
 edition = "2024"
 repository = "https://github.com/uchouT/nyat"
-license = "MIT"
+license = "GPL-3.0-or-later"
 keywords = ["nat1", "port-mapping", "stun", "traversal"]
 categories = ["network-programming"]
 
