@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use nyat_core::net::{IpVer, RemoteAddr};
 
-use crate::config::{TaskConfig, RunMode};
+use crate::config::{RunMode, TaskConfig};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]
@@ -151,8 +151,7 @@ impl TryFrom<Cli> for Config {
                 #[cfg(target_os = "linux")]
                 if let Some(ref name) = shared.iface {
                     crate::config::check_iface(name).map_err(|e| {
-                        Cli::command()
-                            .error(clap::error::ErrorKind::InvalidValue, e.to_string())
+                        Cli::command().error(clap::error::ErrorKind::InvalidValue, e.to_string())
                     })?;
                 }
 

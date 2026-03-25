@@ -2,10 +2,11 @@ use std::io::Write;
 use std::time::Duration;
 
 use anyhow::Result;
-use nyat_core::mapper::{Mapper, MappingHandler, MappingInfo};
+use nyat_core::mapper::{MappingHandler, MappingInfo};
 use tokio::runtime::Runtime;
 use tokio::task::JoinSet;
 
+use crate::config::Task;
 use crate::hooks::Hooks;
 
 struct TaskHandler {
@@ -35,9 +36,9 @@ impl MappingHandler for TaskHandler {
     }
 }
 
-async fn run_task(mapper: Mapper, handler: &mut TaskHandler) {
+async fn run_task(task: Task, handler: &mut TaskHandler) {
     loop {
-        match mapper.run(handler).await {
+        match task.run(handler).await {
             Ok(()) => {}
             Err(e) if e.is_recoverable() => {
                 eprintln!(
@@ -63,10 +64,10 @@ pub(super) fn run(multi_config: super::MultiConfig) -> Result<()> {
 
         for (name, mut config) in multi_config.tasks {
             let exec = config.exec.take();
-            let mapper = config.into_mapper();
+            let task = config.build_task();
             let mut handler = TaskHandler::new(name, Hooks::new(exec));
             set.spawn(async move {
-                run_task(mapper, &mut handler).await;
+                run_task(task, &mut handler).await;
             });
         }
 

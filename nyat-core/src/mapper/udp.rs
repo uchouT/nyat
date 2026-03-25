@@ -21,6 +21,14 @@ pub struct UdpMapper {
 impl UdpMapper {
     const RETRY_LTD: usize = 5;
 
+    #[must_use]
+    pub const fn builder(
+        local: LocalAddr,
+        stun_addr: RemoteAddr,
+    ) -> super::MapperBuilder<super::builder::UdpConfig> {
+        super::MapperBuilder::new_udp(local, stun_addr)
+    }
+
     /// Run the keepalive loop, calling `handler` whenever the public address changes.
     pub async fn run<H: MappingHandler>(&self, handler: &mut H) -> Result<(), Error> {
         let socket_st = self

@@ -12,7 +12,10 @@ categories.workspace = true
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-nyat-core = { workspace = true, features = ["reuse_port", "tcp", "udp"] }
+nyat-core = { workspace = true, features = ["tcp", "udp"] }
 serde = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 toml = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = { workspace = true }

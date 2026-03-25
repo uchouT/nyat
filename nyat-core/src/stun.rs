@@ -7,13 +7,13 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
 use tokio::time::timeout;
 
+#[cfg(feature = "udp")]
+use tokio::net::{ToSocketAddrs, UdpSocket};
 #[cfg(feature = "tcp")]
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
-#[cfg(feature = "udp")]
-use tokio::net::{ToSocketAddrs, UdpSocket};
 
 use crate::error::StunError;
 
