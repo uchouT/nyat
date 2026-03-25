@@ -1,7 +1,6 @@
 //! Network address types and low-level socket utilities.
 
-pub use socket2::Socket;
-use socket2::{Domain, Type};
+use socket2::{Domain, Socket, Type};
 use std::net::SocketAddr;
 #[cfg(feature = "tcp")]
 use tokio::net::TcpStream;

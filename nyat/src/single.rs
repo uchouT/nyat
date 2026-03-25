@@ -37,7 +37,7 @@ impl MappingHandler for Handler {
 
 pub fn proc(mut config: TaskConfig) -> anyhow::Result<()> {
     let mut handler = Handler::new(Hooks::new(config.exec.take()));
-    let mapper = config.into_mapper();
+    let task = config.build_task();
 
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -45,7 +45,7 @@ pub fn proc(mut config: TaskConfig) -> anyhow::Result<()> {
 
     rt.block_on(async {
         loop {
-            match mapper.run(&mut handler).await {
+            match task.run(&mut handler).await {
                 Ok(()) => {}
                 Err(e) if e.is_recoverable() => {
                     eprintln!("nyat: {:#}, retrying...", anyhow::Error::from(e));

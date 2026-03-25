@@ -1,8 +1,9 @@
+use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
-use nyat_core::mapper::{Mapper, MapperBuilder};
+use nyat_core::mapper::{Mapper, MapperBuilder, MappingHandler};
 use nyat_core::net::{LocalAddr, RemoteAddr};
 
 /// Validate that an interface name fits within `IFNAMSIZ` (16 bytes).
@@ -33,7 +34,7 @@ pub struct TaskConfig {
 }
 
 impl TaskConfig {
-    pub fn into_mapper(self) -> Mapper {
+    pub fn build_task(self) -> Task {
         let mut local = LocalAddr::new(self.bind);
         #[cfg(target_os = "linux")]
         {
@@ -43,12 +44,9 @@ impl TaskConfig {
             if let Some(ref iface) = self.iface {
                 local = local.with_iface(iface.as_bytes());
             }
-            if self.force_reuse {
-                local = local.force_reuse_port();
-            }
         }
 
-        match self.mode {
+        let inner = match self.mode {
             RunMode::Tcp { remote } => {
                 let mut builder = MapperBuilder::new_tcp(local, self.stun, remote);
                 if let Some(keepalive) = self.keepalive {
@@ -66,7 +64,52 @@ impl TaskConfig {
                 }
                 builder.build().into()
             }
+        };
+
+        #[cfg(target_os = "linux")]
+        let force_reuse = self.force_reuse;
+        #[cfg(not(target_os = "linux"))]
+        let force_reuse = false;
+
+        Task::new(inner, force_reuse, self.bind.port())
+    }
+}
+
+pub struct Task {
+    inner: Mapper,
+    force_reuse: bool,
+    port: u16,
+}
+
+impl Task {
+    pub(crate) const fn new(inner: Mapper, force_reuse: bool, port: u16) -> Self {
+        Self {
+            inner,
+            force_reuse,
+            port,
         }
+    }
+
+    pub(crate) async fn run<H>(&self, handler: &mut H) -> nyat_core::Result<()>
+    where
+        H: MappingHandler,
+    {
+        #[cfg(target_os = "linux")]
+        if let Err(err) = self.inner.run(handler).await {
+            if let nyat_core::Error::Socket(e) = &err
+                && e.kind() == ErrorKind::AddrInUse
+                && self.force_reuse
+            {
+                nyat::force::force_reuse_port(self.port).map_err(nyat_core::Error::Socket)?;
+                return self.inner.run(handler).await;
+            }
+            return Err(err);
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        self.inner.run(handler).await?;
+
+        Ok(())
     }
 }
 

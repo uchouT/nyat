@@ -21,7 +21,7 @@ const PROC_SOURCES: [(&str, bool); 4] = [
 const TCP_LISTEN: u32 = 0x0A;
 
 /// Force `SO_REUSEPORT` on all existing sockets bound to `port`.
-pub(crate) fn force_reuse_port(port: u16) -> io::Result<()> {
+pub fn force_reuse_port(port: u16) -> io::Result<()> {
     for &(path, is_tcp) in &PROC_SOURCES {
         for inode in find_inodes(path, port, is_tcp)? {
             if let Some((pid, fd)) = find_pid_fd(inode)? {

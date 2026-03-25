@@ -37,3 +37,5 @@ pub mod net;
 mod stun;
 
 pub use error::Error;
+
+pub type Result<T> = std::result::Result<T, Error>;
