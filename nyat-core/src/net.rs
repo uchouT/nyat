@@ -1,8 +1,7 @@
 //! Network address types and low-level socket utilities.
-#[cfg(all(feature = "reuse_port", target_os = "linux"))]
-mod reuse_port;
 
-use socket2::{Domain, Socket, Type};
+pub use socket2::Socket;
+use socket2::{Domain, Type};
 use std::net::SocketAddr;
 #[cfg(feature = "tcp")]
 use tokio::net::TcpStream;
@@ -28,8 +27,6 @@ pub struct LocalAddr {
     fmark: Option<u32>,
     #[cfg(target_os = "linux")]
     iface: Option<([u8; libc::IFNAMSIZ], u8)>,
-    #[cfg(all(feature = "reuse_port", target_os = "linux"))]
-    reuse_port: bool,
 }
 
 impl LocalAddr {
@@ -41,8 +38,6 @@ impl LocalAddr {
             fmark: None,
             #[cfg(target_os = "linux")]
             iface: None,
-            #[cfg(all(feature = "reuse_port", target_os = "linux"))]
-            reuse_port: false,
         }
     }
 
@@ -68,18 +63,6 @@ impl LocalAddr {
         let mut buf = [0u8; 16];
         buf[..src.len()].copy_from_slice(src);
         self.iface = Some((buf, src.len() as u8));
-        self
-    }
-
-    /// Force `SO_REUSEPORT` on existing sockets if `bind` fails with `EADDRINUSE`.
-    ///
-    /// Uses `pidfd_open(2)` + `pidfd_getfd(2)` to duplicate each matching socket
-    /// from other processes and set `SO_REUSEPORT`. Requires `CAP_SYS_PTRACE`
-    /// (or root) and Linux ≥ 5.6.
-    #[cfg(all(feature = "reuse_port", target_os = "linux"))]
-    #[must_use]
-    pub const fn force_reuse_port(mut self) -> Self {
-        self.reuse_port = true;
         self
     }
 
@@ -123,19 +106,8 @@ impl LocalAddr {
         }
 
         let sock_addr = &socket_addr.into();
-
-        #[cfg(not(all(feature = "reuse_port", target_os = "linux")))]
         socket.bind(sock_addr)?;
 
-        #[cfg(all(feature = "reuse_port", target_os = "linux"))]
-        if let Err(e) = socket.bind(sock_addr) {
-            if self.reuse_port && e.kind() == std::io::ErrorKind::AddrInUse {
-                reuse_port::force_reuse_port(socket_addr.port())?;
-                socket.bind(sock_addr)?;
-            } else {
-                return Err(e);
-            }
-        }
         Ok(socket)
     }
 

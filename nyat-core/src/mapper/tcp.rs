@@ -9,8 +9,7 @@ use tokio::{
 use crate::{
     error::Error,
     mapper::MappingHandler,
-    net::connect_remote,
-    net::{LocalAddr, RemoteAddr},
+    net::{LocalAddr, RemoteAddr, connect_remote},
 };
 
 /// Maintains a TCP connection and periodically discovers the public address via STUN.
@@ -25,6 +24,15 @@ pub struct TcpMapper {
 
 impl TcpMapper {
     const RETRY_LTD: usize = 5;
+
+    #[must_use]
+    pub const fn builder(
+        local: LocalAddr,
+        stun_addr: RemoteAddr,
+        ka_remote: RemoteAddr,
+    ) -> super::MapperBuilder<super::builder::TcpConfig> {
+        super::MapperBuilder::new_tcp(local, stun_addr, ka_remote)
+    }
     /// Run the keepalive loop, calling `handler` whenever the public address changes.
     ///
     /// Returns only on unrecoverable error or after exhausting retries.

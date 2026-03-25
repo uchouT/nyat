@@ -17,13 +17,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 socket2 = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["io-util", "macros", "net", "time"] }
+tokio = { workspace = true, features = ["io-util", "net", "time"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
 [features]
 default = ["tcp", "udp"]
-reuse_port = []
 tcp = []
 udp = []
